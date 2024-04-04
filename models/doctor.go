@@ -8,7 +8,7 @@ type Doctor struct {
 	Age            int    `json:"age"`
 	Gender         string `json:"gender"`
 	Specialization string `json:"specialization"`
-	Experience     string    `json:"experience"`
+	Experience     string `json:"experience"`
 	Email          string `json:"email"`
 	Password       string `json:"password"`
 	Phone          string `json:"phone"`
@@ -25,8 +25,8 @@ type DoctorClaims struct {
 }
 
 type DoctorAvailability struct {
-    DoctorAvailabilityID   int     `gorm:"primaryKey"`
-    DoctorID               int     `json:"doctor_id"`
-    Date                   string  `json:"date"`
-    Available              bool    `json:"available"`
+	DoctorAvailabilityID int    `gorm:"primaryKey"`
+	DoctorID             int    `json:"doctor_id"`
+	Date                 string `json:"date"`
+	Available            bool   `json:"available"`
 }

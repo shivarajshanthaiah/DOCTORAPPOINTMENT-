@@ -13,7 +13,9 @@ import (
 
 var jwtKey = []byte("secretKey")
 
-func GeneratePatienttoken(phone string) (string, error) {
+
+// Generating jwt token for patient
+func GeneratePatientToken(phone string) (string, error) {
 	claims := jwt.MapClaims{
 		"phone": phone,
 		"exp":   time.Now().Add(time.Hour * 24).Unix(),

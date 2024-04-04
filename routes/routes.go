@@ -11,14 +11,15 @@ func UserRoutes() *gin.Engine {
 	r := gin.Default()
 
 	//user routers
-	r.GET("/users/login", controllers.PatientLogin)
+	r.POST("/users/login", controllers.PatientLogin)
 	r.POST("/users/signup", controllers.PatientSignup)
-	r.POST("/users/verify", controllers.OTPverify)
+	r.POST("/users/verify", controllers.UserOtpVerify)
 	r.GET("/users/logout", controllers.PatientLogout)
-	
 
+	r.POST("/admin/login", controllers.AdminLogin)
+	r.POST("/admin/logout", controllers.AdminLogout)
 
 	//doctor routes
-	
+
 	return r
 }

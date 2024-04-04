@@ -4,6 +4,7 @@ import (
 	"doctorAppointment/authentication"
 	"doctorAppointment/configuration"
 	"doctorAppointment/models"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,68 +12,103 @@ import (
 
 	"github.com/twilio/twilio-go"
 	verify "github.com/twilio/twilio-go/rest/verify/v2"
+	"gorm.io/gorm"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
-// User Login
+// PatientLogin handles the patient login process
 func PatientLogin(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Welcome to Doctor Appointment Booking. Please login...!"})
-}
-
-func PatientSignup(c *gin.Context) {
+	// Get patient details from the request
 	var patient models.Patient
 	if err := c.BindJSON(&patient); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if the provided phone number exists in the database
+	var existingPatient models.Patient
+	if err := configuration.DB.Where("phone = ?", patient.Phone).First(&existingPatient).Error; err != nil {
+		// Phone number not found in the database
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid phone number or phone number is not present"})
+		return
+	}
+
+	// Generate JWT token for the patient
+	token, err := authentication.GeneratePatientToken(patient.Phone)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+
+	// Return the token
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+
+// Function to handle patient signup
+func PatientSignup(c *gin.Context) {
+	var patient models.Patient
+	// Binding JSON data to patient struct
+	if err := c.BindJSON(&patient); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	fmt.Println(patient)
 
-	if err := configuration.DB.Where("phone = ?", patient.Phone).First(&models.Patient{}).Error; err == nil {
-		//Genereate Token
-		token, err := authentication.GeneratePatienttoken(patient.Phone)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+	var existingPatient models.Patient
+		if err := configuration.DB.Where("phone = ?", patient.Phone).First(&existingPatient).Error; err == nil {
+			// Patient already exists, return error
+			c.JSON(http.StatusConflict, gin.H{"message": "Patient already exists"})
+			return
+		} else if err != gorm.ErrRecordNotFound {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "database error"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": "Token Generated Successfully", "token": token})
-		return
 
-	} else if err != gorm.ErrRecordNotFound {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "db error exist"})
-		return
-	}
-
+		// token, err := authentication.GeneratePatienttoken(patient.Phone)
+		// if err != nil {
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		// 	return
+		// }
+		
+	// Send OTP to the patient's phone number
 	err := SendOTP(patient.Phone)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send OTP", "data": err.Error()})
 		return
 	}
 
+	patientData, err := json.Marshal(&patient)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal patient", "data": err.Error()})
+		return
+	}
+	// Store phone number in Redis for OTP verification
 	key := fmt.Sprintf("user:%s", patient.Phone)
-	err = configuration.SetRedis(key, patient.Phone, time.Minute*5)
-	if err != nil{
+	err = configuration.SetRedis(key, patientData, time.Minute*5)
+	if err != nil {
 		fmt.Println("Error setting user in Redis:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message":"Internal server error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message": "Internal server error"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"Message":"Otp generated successfully. Proceed to verification page>>>"})
+	c.JSON(http.StatusOK, gin.H{"Message": "Otp generated successfully. Proceed to verification page>>>"})
 
 }
 
+// Function to send OTP to the patient's phone number
 func SendOTP(phoneNumber string) error {
 	accountSID := os.Getenv("TWILIO_ACCOUNT_SID")
 	authToken := os.Getenv("TWILIO_AUTHTOKEN")
 
+	// Initialize Twilio client
 	client := twilio.NewRestClientWithParams(twilio.ClientParams{
 		Username: accountSID,
 		Password: authToken,
 	})
 
-	//create SMS message
+	//create SMS message for OTP verification
 	from := os.Getenv("TWILIO_PHONENUMBER")
 	params := verify.CreateVerificationParams{}
 	params.SetTo("+918762334325")
@@ -87,31 +123,37 @@ func SendOTP(phoneNumber string) error {
 	return nil
 }
 
-func OTPverify(c *gin.Context) {
+// Function to verify OTP and create patient record
+func UserOtpVerify(c *gin.Context) {
 	accountSID := os.Getenv("TWILIO_ACCOUNT_SID")
 	authToken := os.Getenv("TWILIO_AUTHTOKEN")
 
+	// Bind OTP verification request data
 	var OTPverify models.VerifyOTP
 	if err := c.BindJSON(&OTPverify); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"Status": false, "Data": nil, "Message": err.Error()})
+		// fmt.Println("i'm here")
+		fmt.Println("Error parsing JSON:", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"Status": false, "Data": nil, "Message": "Failed to parse JSON data"})
 		return
 	}
 
-
+	// Check if OTP is empty
 	if OTPverify.Otp == "" {
-		c.JSON(http.StatusOK, gin.H{"Status": true, "Message": "OTP verified successfully"})
+		c.JSON(http.StatusBadRequest, gin.H{"Status": false, "Message": "OTP is required"})
 	}
 
+	// Initialize Twilio client for OTP verification
 	client := twilio.NewRestClientWithParams(twilio.ClientParams{
 		Username: accountSID,
 		Password: authToken,
 	})
 
+	// Create parameters for OTP verification check
 	params := verify.CreateVerificationCheckParams{}
 	params.SetTo("+918762334325")
 	params.SetCode(OTPverify.Otp)
 
-	//send twilio verification check
+	// Verify OTP with Twilio
 	response, err := client.VerifyV2.CreateVerificationCheck(os.Getenv("TWILIO_SERVIES_ID"), &params)
 	if err != nil {
 		fmt.Println("err", err.Error())
@@ -122,34 +164,44 @@ func OTPverify(c *gin.Context) {
 		return
 	}
 
+	// Retrieve patient data from Redis
 	key := fmt.Sprintf("user:%s", OTPverify.Phone)
 	value, err := configuration.GetRedis(key)
 	if err != nil {
-		fmt.Println("Error checking user in Redis:", err.Error())
+		fmt.Println("Error retrieving OTP from Redis:", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "Data": nil, "Message": "Internal server error"})
 		return
 	}
 
-	var patient models.Patient
-	patient.Phone = value
-	patient.Name = value
-	patient.Age = value
-	patient.Address = value
-	patient.Email = value
-	patient.Gender= value
+	// Bind user data from request body
+	var userData models.Patient
 
-	err = configuration.DB.Create(&patient).Error
+	err = json.Unmarshal([]byte(value), &userData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unmarshal patient", "data": err.Error()})
+		return
+	}
+
+	err = configuration.DB.Create(&userData).Error
 	if err != nil {
 		fmt.Println("Error creating Patient:", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message": "Failed to create user"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"Status": true, "Message": "OTP verified successfully"})
+	c.JSON(http.StatusOK, gin.H{"Status": true, "Message": "OTP verified successfully and user has been created. Login to continue..."})
 }
 
 // User logout
 func PatientLogout(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "You are Sucessfully logged out"})
+	// In the logout function, immediately expire the token by setting the expiration time to now
+	// tokenString, err := GeneratePatienttoken("", time.Now())
+	// if err != nil {
+	//     c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+	//     return
+	// }
+
+	//c.JSON(http.StatusOK, gin.H{"token": tokenString, "message": "You are successfully logged out"})
+
+	c.JSON(http.StatusOK, gin.H{"message": "You are successfully logged out"})
 }

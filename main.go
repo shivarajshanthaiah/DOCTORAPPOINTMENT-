@@ -7,7 +7,6 @@ import (
 func Init(){
 	configuration.ConfigDB()
 	configuration.InitRedis()
-	// configuration.Loadenv()
 }
 
 	func main() {
