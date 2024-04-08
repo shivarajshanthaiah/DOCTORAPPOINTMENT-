@@ -5,17 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 )
 
-var (
-	jwtkey         = []byte("adminkey")
-	TokenBlacklist = make(map[string]bool)
-	TokenMutex     = &sync.Mutex{}
-)
+var jwtkey = []byte("adminkey")
 
 func GenerateAdminToken(username string) (string, error) {
 	//setting token expiration time
@@ -57,14 +53,6 @@ func AdminAuthMiddleware() gin.HandlerFunc {
 		}
 
 		authHeader := strings.TrimSpace(strings.TrimPrefix(tokenString, "Bearer"))
-
-		TokenMutex.Lock()
-		defer TokenMutex.Unlock()
-		if TokenBlacklist[authHeader] {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token is revoked"})
-			return
-		}
-
 
 		username, err := AdminAuthentication(authHeader)
 		if err != nil {

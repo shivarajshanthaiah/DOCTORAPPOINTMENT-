@@ -1,7 +1,13 @@
 package models
 
+import (
+
+	"gorm.io/gorm"
+)
+
 type Hospital struct {
-    HospitalID  int     `gorm:"primaryKey;autoIncrement"`
-    Name        string  `json:"name"`
-    Location    string  `json:"location"`
+	gorm.Model
+	Name     string `json:"name"`
+	Location string `json:"location"`
+	Status   string `json:"active"`
 }

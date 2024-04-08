@@ -10,6 +10,7 @@ type Patient struct {
 	Phone     string `json:"phone" validate:"required"`
 	Email     string `json:"email"`
 	Address   string `json:"address"`
+	Password  string `json:"password"`
 }
 
 type VerifyOTP struct {

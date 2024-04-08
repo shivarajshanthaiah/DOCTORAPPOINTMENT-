@@ -12,6 +12,7 @@ import (
 
 	"github.com/twilio/twilio-go"
 	verify "github.com/twilio/twilio-go/rest/verify/v2"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
 	"github.com/gin-gonic/gin"
@@ -19,23 +20,31 @@ import (
 
 // PatientLogin handles the patient login process
 func PatientLogin(c *gin.Context) {
-	// Get patient details from the request
-	var patient models.Patient
-	if err := c.BindJSON(&patient); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+var loginReq struct{
+	Phone string `json:"phone" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+if err := c.BindJSON(&loginReq); err != nil{
+	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	return
+}
 
 	// Check if the provided phone number exists in the database
 	var existingPatient models.Patient
-	if err := configuration.DB.Where("phone = ?", patient.Phone).First(&existingPatient).Error; err != nil {
+	if err := configuration.DB.Where("phone = ?", loginReq.Phone).First(&existingPatient).Error; err != nil {
 		// Phone number not found in the database
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid phone number or phone number is not present"})
 		return
 	}
 
+	if err := bcrypt.CompareHashAndPassword([]byte(existingPatient.Password), []byte(loginReq.Password)); err != nil {
+        // Incorrect password
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid phone number or password"})
+        return
+    }
+
 	// Generate JWT token for the patient
-	token, err := authentication.GeneratePatientToken(patient.Phone)
+	token, err := authentication.GeneratePatientToken(loginReq.Phone)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
@@ -44,7 +53,6 @@ func PatientLogin(c *gin.Context) {
 	// Return the token
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
-
 
 // Function to handle patient signup
 func PatientSignup(c *gin.Context) {
@@ -56,26 +64,27 @@ func PatientSignup(c *gin.Context) {
 	}
 	fmt.Println(patient)
 
-	var existingPatient models.Patient
-		if err := configuration.DB.Where("phone = ?", patient.Phone).First(&existingPatient).Error; err == nil {
-			// Patient already exists, return error
-			c.JSON(http.StatusConflict, gin.H{"message": "Patient already exists"})
-			return
-		} else if err != gorm.ErrRecordNotFound {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "database error"})
-			return
-		}
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(patient.Password), bcrypt.DefaultCost)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+        return
+    }
+    patient.Password = string(hashedPassword)
 
-		// token, err := authentication.GeneratePatienttoken(patient.Phone)
-		// if err != nil {
-		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-		// 	return
-		// }
-		
+	var existingPatient models.Patient
+	if err := configuration.DB.Where("phone = ?", patient.Phone).First(&existingPatient).Error; err == nil {
+		// Patient already exists, return error
+		c.JSON(http.StatusConflict, gin.H{"message": "Patient already exists"})
+		return
+	} else if err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "database error"})
+		return
+	}
+
 	// Send OTP to the patient's phone number
-	err := SendOTP(patient.Phone)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send OTP", "data": err.Error()})
+	err1 := SendOTP(patient.Phone)
+	if err1 != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send OTP", "data": err1.Error()})
 		return
 	}
 
@@ -194,14 +203,5 @@ func UserOtpVerify(c *gin.Context) {
 
 // User logout
 func PatientLogout(c *gin.Context) {
-	// In the logout function, immediately expire the token by setting the expiration time to now
-	// tokenString, err := GeneratePatienttoken("", time.Now())
-	// if err != nil {
-	//     c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
-	//     return
-	// }
-
-	//c.JSON(http.StatusOK, gin.H{"token": tokenString, "message": "You are successfully logged out"})
-
 	c.JSON(http.StatusOK, gin.H{"message": "You are successfully logged out"})
 }

@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Amin login
 func AdminLogin(c *gin.Context) {
 	var admin models.Admin
 	if err := c.BindJSON(&admin); err != nil {
@@ -56,18 +57,6 @@ func AdminLogin(c *gin.Context) {
 
 
 func AdminLogout(c *gin.Context) {
-	// Extract token from request
-	tokenString := c.GetHeader("Authorization")
-	if tokenString == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Authorization header is missing"})
-		return
-	}
-
-	// Add token to the blacklist
-	authentication.TokenMutex.Lock()
-	defer authentication.TokenMutex.Unlock()
-	authentication.TokenBlacklist[tokenString] = true
-
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
 }
 
