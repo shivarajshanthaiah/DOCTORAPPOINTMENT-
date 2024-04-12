@@ -28,15 +28,15 @@ func ConfigDB() {
 		panic("Failed to connect to the database")
 	}
 
-	DB.AutoMigrate(&models.Appointment{}, 
-		&models.AppointmentHistory{}, 
+	DB.AutoMigrate(
+		&models.Appointment{}, 
 		&models.Doctor{}, 
 		&models.Hospital{}, 
 		&models.Patient{}, 
 		&models.Payment{}, 
 		&models.Prescription{}, 
-		&models.Slot{},
 		&models.Admin{},
+		&models.DoctorAvailability{},
 	)
 
 }

@@ -1,4 +1,4 @@
-package controllers
+package adminControllers
 
 import (
 	"doctorAppointment/configuration"
@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const (
@@ -15,16 +16,16 @@ const (
 
 // Viewing hospitals
 func ViewHospitals(c *gin.Context) {
-	var hospitals []models.Hospital
+	var hospital []models.Hospital
 
-	if err := configuration.DB.Find(&hospitals).Error; err != nil {
+	if err := configuration.DB.Find(&hospital).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Hospital not found"})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"Status":  "Success",
 		"Message": "Hospitals list fetehed successfully",
-		"data":    hospitals,
+		"data":    hospital,
 	})
 }
 
@@ -45,7 +46,7 @@ func AddHospital(c *gin.Context) {
 			  "message": "A hospital with the same name and location already exists",
 		  })
 		  return
-	  } else if err != nil{
+	  } else if err != gorm.ErrRecordNotFound{
 		  // Database error
 		  c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		  return
@@ -87,7 +88,7 @@ func UpdateHospital(c *gin.Context){
 	hospitalID := c.Param("id")
 
 	if err := configuration.DB.First(&hospital, hospitalID).Error; err != nil{
-		c.JSON(http.StatusNotFound, gin.H{"Error":"Staff not found"})
+		c.JSON(http.StatusNotFound, gin.H{"Error":"Hospital not found"})
 		return
 	}
 	if err := c.BindJSON(&hospital); err != nil{
@@ -131,4 +132,32 @@ func RemoveHospital(c * gin.Context){
 		"Status":"success",
 		"message":"Hospital details removed successfully",
 	})
+}
+
+
+func ViewDeletedHospitals(c *gin.Context){
+	var hospitals []models.Hospital
+
+	if err := configuration.DB.Where("status = ?", "Deactive").Find(&hospitals).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while fetching deleted hospitals"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"Status":"Success",
+		"Message":"Deleted Hospitals list fetched successfully",
+		"Data": hospitals,
+	})
+}
+
+
+func ViewActiveHospitals(c *gin.Context){
+	var hospitals []models.Hospital
+
+	if err := configuration.DB.Where("status = ?", "Active").Find(&hospitals).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error while fetching hospitals"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"Active Hospitals": hospitals})
 }

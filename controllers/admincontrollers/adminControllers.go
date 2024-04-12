@@ -1,4 +1,4 @@
-package controllers
+package adminControllers
 
 import (
 	"doctorAppointment/authentication"

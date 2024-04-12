@@ -4,29 +4,23 @@ import "github.com/golang-jwt/jwt/v5"
 
 type Doctor struct {
 	DoctorID       uint   `gorm:"primaryKey"`
-	Name           string `json:"name"`
-	Age            string `json:"age"`
-	Gender         string `json:"gender"`
-	Specialization string `json:"specialization"`
-	Experience     string `json:"experience"`
-	Email          string `json:"email"`
-	Password       string `json:"password"`
-	Phone          string `json:"phone"`
-	LicenseNumber  string `json:"license_number"`
-	Availability   bool   `json:"availability"`
-	Verified       bool   `json:"verified"`
-	HospitalID     uint   `json:"hospital_id"`
+	Name           string `json:"name" gorm:"not null"`
+	Age            int    `json:"age"`
+	Gender         string `json:"gender" gorm:"not null"`
+	Specialization string `json:"specialization" gorm:"not null"`
+	Experience     int    `json:"experience" gorm:"not null"`
+	Email          string `json:"email" gorm:"unique"`
+	Password       string `json:"password" gorm:"not null"`
+	Phone          string `json:"phone" gorm:"not null"`
+	LicenseNumber  string `json:"license_number" gorm:"not null"`
+	Verified       string `json:"verified"`
+	Approved       string `json:"approved"`
+	HospitalID     uint `json:"hospital_id" gorm:"not null"`
+	Availabilities []DoctorAvailability
 }
 
 type DoctorClaims struct {
-	Id        uint   `json:"id"`
-	DoctorEmail string `json:"useremail"`
+	Id          uint   `json:"id"`
+	DoctorEmail string `json:"email"`
 	jwt.RegisteredClaims
-}
-
-type DoctorAvailability struct {
-	DoctorAvailabilityID uint   `gorm:"primaryKey"`
-	DoctorID             uint   `json:"doctor_id"`
-	Date                 string `json:"date"`
-	Available            bool   `json:"available"`
 }

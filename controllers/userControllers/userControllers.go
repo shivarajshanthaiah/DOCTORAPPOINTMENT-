@@ -1,4 +1,4 @@
-package controllers
+package userControllers
 
 import (
 	"doctorAppointment/authentication"
@@ -20,14 +20,14 @@ import (
 
 // PatientLogin handles the patient login process
 func PatientLogin(c *gin.Context) {
-var loginReq struct{
-	Phone string `json:"phone" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-if err := c.BindJSON(&loginReq); err != nil{
-	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	return
-}
+	var loginReq struct {
+		Phone    string `json:"phone" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.BindJSON(&loginReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// Check if the provided phone number exists in the database
 	var existingPatient models.Patient
@@ -38,10 +38,10 @@ if err := c.BindJSON(&loginReq); err != nil{
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(existingPatient.Password), []byte(loginReq.Password)); err != nil {
-        // Incorrect password
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid phone number or password"})
-        return
-    }
+		// Incorrect password
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid phone number or password"})
+		return
+	}
 
 	// Generate JWT token for the patient
 	token, err := authentication.GeneratePatientToken(loginReq.Phone)
@@ -65,11 +65,11 @@ func PatientSignup(c *gin.Context) {
 	fmt.Println(patient)
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(patient.Password), bcrypt.DefaultCost)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
-        return
-    }
-    patient.Password = string(hashedPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+	patient.Password = string(hashedPassword)
 
 	var existingPatient models.Patient
 	if err := configuration.DB.Where("phone = ?", patient.Phone).First(&existingPatient).Error; err == nil {
@@ -205,3 +205,4 @@ func UserOtpVerify(c *gin.Context) {
 func PatientLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "You are successfully logged out"})
 }
+
