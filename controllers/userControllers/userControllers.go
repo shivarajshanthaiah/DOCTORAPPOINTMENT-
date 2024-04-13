@@ -169,7 +169,7 @@ func UserOtpVerify(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message": "error in veifying provided OTP"})
 		return
 	} else if *response.Status != "approved" {
-		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message": "Wrong OTP provoded"})
+		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message": "Wrong OTP provided"})
 		return
 	}
 

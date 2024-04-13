@@ -18,39 +18,44 @@ const (
 	DoctorApproved = "false"
 )
 
+// DoctorSignup
 func DoctorSignup(c *gin.Context) {
 	// Validator instance
 	validate := validator.New()
 
-	// Parse doctor data from request
+	// Parsing doctor data from request
 	var doctor models.Doctor
 	if err := c.BindJSON(&doctor); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Validate doctor data
+	// Validating doctor data
 	if err := validate.Struct(doctor); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	// Check if doctor with the same email exists
 	var existingDoctor models.Doctor
 	if err := configuration.DB.Where("email = ?", doctor.Email).First(&existingDoctor).Error; err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Email already exists"})
 		return
 	}
 
+	// Check if doctor with the same phone number exists
 	if err := configuration.DB.Where("phone = ?", doctor.Phone).First(&existingDoctor).Error; err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Phone number already exists"})
 		return
 	}
 
+	// Check if doctor with the same elicence exists
 	if err := configuration.DB.Where("license_number = ?", doctor.LicenseNumber).First(&existingDoctor).Error; err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Licence already exists"})
 		return
 	}
 
+	// Hashing password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(doctor.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
@@ -83,30 +88,35 @@ func DoctorSignup(c *gin.Context) {
 	})
 }
 
+
+// DoctorLogin
 func DoctorLogin(c *gin.Context) {
 	var doctors models.Doctor
 	if err := c.BindJSON(&doctors); err != nil {
 		c.JSON(400, gin.H{"Error": err.Error()})
 		return
 	}
+
+	// Finding doctor by email
 	var existingDoctor models.Doctor
 	if err := configuration.DB.Where("email = ?", doctors.Email).First(&existingDoctor).Error; err != nil {
 		c.JSON(401, gin.H{"error": "invalid is email"})
 		return
 	}
 
+	// Comparing password hashes
 	if err := bcrypt.CompareHashAndPassword([]byte(existingDoctor.Password), []byte(doctors.Password)); err != nil {
-		// Incorrect password
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
 		return
 	}
 
-	// Check if the doctor is approved
+	// Checking if the doctor is approved
 	if existingDoctor.Approved != "true" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Doctor not approved yet"})
 		return
 	}
 
+	// Generating JWT token for authenticated doctor
 	token, err := authentication.GenerateDoctorToken(doctors.Email, doctors.DoctorID)
 
 	if err != nil {
@@ -117,6 +127,8 @@ func DoctorLogin(c *gin.Context) {
 
 }
 
+
+// ViewHospital retrieves a list of active hospitals
 func ViewHospital(c *gin.Context) {
 	var hospitals []models.Hospital
 
@@ -132,12 +144,12 @@ func ViewHospital(c *gin.Context) {
 	})
 }
 
-
+// DoctorLogout
 func DoctorLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "You are successfully logged out"})
 }
 
-
+// SaveAvailability saves the availability of a doctor
 func SaveAvailability(c *gin.Context) {
 	var availability models.DoctorAvailability
 
@@ -153,11 +165,13 @@ func SaveAvailability(c *gin.Context) {
 		return
 	}
 
+	// Check if doctor is approved
 	if doctor.Approved != "true" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Doctor not found"})
 		return
 	}
 	
+	// Check if availability for the given date already exists
 	var existingAvailability models.DoctorAvailability
     if err := configuration.DB.Where("doctor_id = ? AND date = ?", availability.DoctorID, availability.Date).First(&existingAvailability).Error; err == nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Availability already exists for this date"})
@@ -167,6 +181,7 @@ func SaveAvailability(c *gin.Context) {
         return
     }
 
+	// Create new availability record in the database
 	if err := configuration.DB.Create(&availability).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create availability"})
 		return
@@ -176,6 +191,7 @@ func SaveAvailability(c *gin.Context) {
 }
 
 
+// AddPrescription
 func AddPrescription(c *gin.Context){
 	var prescription models.Prescription
 	if err := c.BindJSON(&prescription); err != nil{
@@ -183,24 +199,28 @@ func AddPrescription(c *gin.Context){
 		return
 	}
 
+	// Check if doctor exists
 	var doctor models.Doctor
 	if err := configuration.DB.Where("doctor_id = ?", prescription.DoctorID).First(&doctor).Error; err != nil{
 		c.JSON(http.StatusNotFound, gin.H{"error":"Invalid doctor ID"})
 		return
 	}
 
+	// Check if patient exists
 	var patient models.Patient
 	if err := configuration.DB.Where("patient_id = ?", prescription.PatientID).First(&patient).Error; err != nil{
 		c.JSON(http.StatusNotFound, gin.H{"error":"Invalid patient ID"})
 		return
 	}
 
+	// Check if appointment exists
 	var appointment models.Appointment
 	if err := configuration.DB.Where("appointment_id = ?", prescription.AppointmentID).First(&appointment).Error; err != nil{
 		c.JSON(http.StatusNotFound, gin.H{"error":"Invalid appointment ID"})
 		return
 	}
 
+	// Create new prescription record in the database
 	if err := configuration.DB.Create(&prescription).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add prescription"})
 		return

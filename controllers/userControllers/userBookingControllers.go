@@ -89,7 +89,7 @@ type DoctorInfo struct {
 	Gender     string `json:"gender" gorm:"not null"`
 	Speciality string `json:"speciality"`
 	Experience int    `json:"experience"`
-	Location string
+	Location   string
 }
 
 func GetDoctorsBySpeciality(c *gin.Context) {
@@ -109,9 +109,9 @@ func GetDoctorsBySpeciality(c *gin.Context) {
 	var doctorInfoList []DoctorInfo
 	for _, doctor := range doctors {
 		var hospital models.Hospital
-		err := configuration.DB.Where("id = ?",doctor.HospitalID).First(&hospital).Error
-		if err != nil{
-			c.JSON(http.StatusNotFound, gin.H{"error":"Location error"})
+		err := configuration.DB.Where("id = ?", doctor.HospitalID).First(&hospital).Error
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Location error"})
 			return
 		}
 		doctorInfo := DoctorInfo{
@@ -120,7 +120,7 @@ func GetDoctorsBySpeciality(c *gin.Context) {
 			Gender:     doctor.Gender,
 			Speciality: doctor.Specialization,
 			Experience: doctor.Experience,
-			Location: hospital.Location,
+			Location:   hospital.Location,
 		}
 		doctorInfoList = append(doctorInfoList, doctorInfo)
 	}
@@ -136,44 +136,6 @@ func GetDoctorsBySpeciality(c *gin.Context) {
 		"data":    doctorInfoList,
 	})
 }
-
-// func BookAppointment(c *gin.Context) {
-// 	var booking models.Appointment
-
-// 	if err := c.BindJSON(&booking); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	existingAppointment := models.Appointment{}
-// 	err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND appointment_time_slot = ?", booking.DoctorID, booking.AppointmentDate, booking.AppointmentTimeSlot).First(&existingAppointment).Error
-// 	if err == nil {
-// 		c.JSON(http.StatusConflict, gin.H{"error": "Appointment already booked for the same doctor, date and time slot"})
-// 		return
-// 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check for existing appointments"})
-// 		return
-// 	}
-
-// 	var doctor models.Doctor
-// 	if err := configuration.DB.Where("doctor_id = ? AND approved = ?", booking.DoctorID, "true").First(&doctor).Error; err != nil {
-// 		c.JSON(http.StatusNotFound, gin.H{"Error": "Doctor not found"})
-// 		return
-// 	}
-// 	 // Check if the patient exists
-// 	 var patient models.Patient
-// 	 if err := configuration.DB.Where("patient_id = ?", booking.PatientID).First(&patient).Error; err != nil {
-// 		 c.JSON(http.StatusNotFound, gin.H{"error": "Wrong patient ID"})
-// 		 return
-// 	 }
-
-// 	if err := configuration.DB.Create(&booking).Error; err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to book appointment"})
-// 		return
-// 	}
-// 	c.JSON(http.StatusOK, booking)
-// }
-
 
 func BookAppointment(c *gin.Context) {
 	var booking models.Appointment
@@ -198,7 +160,7 @@ func BookAppointment(c *gin.Context) {
 	}
 
 	// Check for existing appointments with the same date and time slot
-	if !isAppointmentAvailable(booking.DoctorID, booking.AppointmentDate, booking.AppointmentTimeSlot,) {
+	if !isAppointmentAvailable(booking.DoctorID, booking.AppointmentDate, booking.AppointmentTimeSlot) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Appointment already booked for the same date and time slot wiht the doctor"})
 		return
 	}
@@ -220,7 +182,11 @@ func BookAppointment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, booking)
+	c.JSON(http.StatusOK, gin.H{
+		"Status":  "Sucess",
+		"Message": "Appointment booked sucessfully",
+		"data":    booking,
+	})
 }
 
 func getDoctorAvailability(doctorID int, date time.Time) *models.DoctorAvailability {
@@ -240,9 +206,9 @@ func isTimeWithinAvailableSlot(appointmentTimeSlot string, availableSlots []stri
 	return false
 }
 
-func isAppointmentAvailable(doctorID int, date time.Time, appointmentTimeSlot string,) bool {
+func isAppointmentAvailable(doctorID int, date time.Time, appointmentTimeSlot string) bool {
 	var existingAppointment models.Appointment
-	err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND appointment_time_slot = ?", doctorID, date, appointmentTimeSlot,).First(&existingAppointment).Error
+	err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND appointment_time_slot = ?", doctorID, date, appointmentTimeSlot).First(&existingAppointment).Error
 	if err == nil {
 		return false // Appointment already exists for the same date and time slot
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {

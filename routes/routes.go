@@ -54,6 +54,8 @@ func UserRoutes() *gin.Engine {
 	}
 
 	//Doctor routes
+	r.POST("/signup", doctorControllers.Signup)
+	r.POST("/verify", doctorControllers.VerifyOTP)
 	r.GET("view/hospitals", doctorControllers.ViewHospital)
 	r.POST("doctor/signup", doctorControllers.DoctorSignup)
 	r.POST("/doctor/login", doctorControllers.DoctorLogin)

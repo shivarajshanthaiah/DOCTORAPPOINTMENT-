@@ -83,6 +83,8 @@ func SearchHospital(c *gin.Context){
 	})
 }
 
+
+//Update hospital 
 func UpdateHospital(c *gin.Context){
 	var hospital models.Hospital
 	hospitalID := c.Param("id")
