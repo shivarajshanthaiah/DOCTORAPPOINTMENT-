@@ -15,6 +15,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	DoctorVerified = "false"
+	DoctorApproved = "false"
+)
+
 var validate = validator.New()
 
 // Signup handles the registration of a new doctor.
@@ -105,6 +110,18 @@ func Signup(c *gin.Context) {
 	}
 
 	doctor.Password = string(hashedPassword)
+
+	//Check if hospital ID exists and is active
+	var hospital models.Hospital
+	if err := configuration.DB.First(&hospital, doctor.HospitalID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"Error": "Hospital doesn't exists"})
+		return
+	}
+
+	if hospital.Status == "Deactive" {
+		c.JSON(http.StatusBadRequest, gin.H{"Error": "Hospital doesn't exists"})
+		return
+	}
 
 	// Generate OTP and send it via email
 	otp := authentication.GenerateOTP(6)
@@ -207,6 +224,8 @@ func VerifyOTP(c *gin.Context) {
 		}
 
 		// Create doctor record in the database
+		doctorData.Verified = DoctorVerified
+		doctorData.Approved = DoctorApproved
 		configuration.DB.Create(&doctorData)
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "Success",
@@ -214,5 +233,44 @@ func VerifyOTP(c *gin.Context) {
 			"data":    doctorData,
 		})
 	}
+
+}
+
+
+// DoctorLogin
+func DoctorLogin(c *gin.Context) {
+	var doctors models.Doctor
+	if err := c.BindJSON(&doctors); err != nil {
+		c.JSON(400, gin.H{"Error": err.Error()})
+		return
+	}
+
+	// Finding doctor by email
+	var existingDoctor models.Doctor
+	if err := configuration.DB.Where("email = ?", doctors.Email).First(&existingDoctor).Error; err != nil {
+		c.JSON(401, gin.H{"error": "invalid is email"})
+		return
+	}
+
+	// Comparing password hashes
+	if err := bcrypt.CompareHashAndPassword([]byte(existingDoctor.Password), []byte(doctors.Password)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+		return
+	}
+
+	// Checking if the doctor is approved
+	if existingDoctor.Approved != "true" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Doctor not approved yet"})
+		return
+	}
+
+	// Generating JWT token for authenticated doctor
+	token, err := authentication.GenerateDoctorToken(doctors.Email, doctors.DoctorID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
 
 }

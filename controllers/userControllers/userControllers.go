@@ -51,7 +51,11 @@ func PatientLogin(c *gin.Context) {
 	}
 
 	// Return the token
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	c.JSON(http.StatusOK, gin.H{
+		"Status":"Success",
+		"message":"Login sucessful",
+		"token": token,
+	})
 }
 
 // Function to handle patient signup

@@ -137,6 +137,7 @@ func RemoveHospital(c * gin.Context){
 }
 
 
+//View deleted hospital
 func ViewDeletedHospitals(c *gin.Context){
 	var hospitals []models.Hospital
 
@@ -153,6 +154,7 @@ func ViewDeletedHospitals(c *gin.Context){
 }
 
 
+// View Active hospitals
 func ViewActiveHospitals(c *gin.Context){
 	var hospitals []models.Hospital
 

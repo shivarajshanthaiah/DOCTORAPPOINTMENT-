@@ -2,6 +2,7 @@ package routes
 
 import (
 	"doctorAppointment/authentication"
+	"doctorAppointment/controllers"
 	adminControllers "doctorAppointment/controllers/admincontrollers"
 	"doctorAppointment/controllers/doctorControllers"
 	"doctorAppointment/controllers/userControllers"
@@ -17,6 +18,8 @@ func UserRoutes() *gin.Engine {
 	r.POST("/users/login", userControllers.PatientLogin)
 	r.POST("/users/signup", userControllers.PatientSignup)
 	r.POST("/users/verify", userControllers.UserOtpVerify)
+	r.GET("/pay/invoice/online", controllers.MakePaymentOnline)
+	r.GET("/payment/success", controllers.SuccessPage)
 
 	user := r.Group("/user")
 	user.Use(authentication.PatientAuthMiddleware())
@@ -25,6 +28,7 @@ func UserRoutes() *gin.Engine {
 		user.GET("/logout", userControllers.PatientLogout)
 		user.GET("/doctor/:specialization", userControllers.GetDoctorsBySpeciality)
 		user.POST("/book/appointment", userControllers.BookAppointment)
+		user.POST("/pay/invoice/offline", controllers.PayInvoiceOffline)
 
 	}
 
@@ -54,10 +58,10 @@ func UserRoutes() *gin.Engine {
 	}
 
 	//Doctor routes
-	r.POST("/signup", doctorControllers.Signup)
-	r.POST("/verify", doctorControllers.VerifyOTP)
+	r.POST("doctor/signup", doctorControllers.Signup)
+	r.POST("doctor/verify", doctorControllers.VerifyOTP)
 	r.GET("view/hospitals", doctorControllers.ViewHospital)
-	r.POST("doctor/signup", doctorControllers.DoctorSignup)
+	//r.POST("doctor/signup", doctorControllers.DoctorSignup)
 	r.POST("/doctor/login", doctorControllers.DoctorLogin)
 
 	doctors := r.Group("/doctor")

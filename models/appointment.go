@@ -9,4 +9,6 @@ type Appointment struct {
 	AppointmentDate     time.Time `json:"appointment_date"`
 	AppointmentTimeSlot string    `json:"appointment_time"`
 	PatientHealthIssue  string    `json:"patient_health_issue"`
+	PaymentStatus       string    `json:"payment_status"`
+	BookingStatus       string    `json:"booking_status"`
 }

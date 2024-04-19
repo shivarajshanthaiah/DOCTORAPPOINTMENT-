@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// View verified doctors
 func ViewVerifiedDoctors(c *gin.Context) {
 	var doctors []models.Doctor
 
@@ -25,6 +26,7 @@ func ViewVerifiedDoctors(c *gin.Context) {
 	})
 }
 
+//View Not verified doctors
 func ViewNotVerifiedDoctors(c *gin.Context) {
 	var doctors []models.Doctor
 
@@ -40,6 +42,7 @@ func ViewNotVerifiedDoctors(c *gin.Context) {
 	})
 }
 
+// View Verified and approved dospitals
 func ViewVerifiedApprovedDoctors(c *gin.Context) {
     var doctors []models.Doctor
 
@@ -55,6 +58,7 @@ func ViewVerifiedApprovedDoctors(c *gin.Context) {
     })
 }
 
+//View verified but not approved doctors
 func ViewVerifiedNotApprovedDoctors(c *gin.Context) {
     var doctors []models.Doctor
 
@@ -70,6 +74,7 @@ func ViewVerifiedNotApprovedDoctors(c *gin.Context) {
     })
 }
 
+//Update doctor credentials
 func UpdateDoctor(c *gin.Context) {
 	var doctor models.Doctor
 	doctorID := c.Param("id")
@@ -94,6 +99,7 @@ func UpdateDoctor(c *gin.Context) {
 	})
 }
 
+//View all Doctors list
 func ViewDoctors(c *gin.Context) {
 	var doctors []models.Doctor
 
@@ -108,6 +114,7 @@ func ViewDoctors(c *gin.Context) {
 	})
 }
 
+//Get doctors details by id
 func GetDoctorByID(c *gin.Context) {
 	var doctor models.Doctor
 	doctorID := c.Param("id")
@@ -124,6 +131,7 @@ func GetDoctorByID(c *gin.Context) {
 
 }
 
+//Get doctros details by speciality
 func GetDoctorBySpeciality(c *gin.Context) {
 	var doctors []models.Doctor
 	doctorSpeciality := c.Param("specialization")
