@@ -5,13 +5,11 @@ import (
 	"doctorAppointment/models"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
-
-
-
 
 // ViewHospital retrieves a list of active hospitals
 func ViewHospital(c *gin.Context) {
@@ -55,16 +53,16 @@ func SaveAvailability(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Doctor not found"})
 		return
 	}
-	
+
 	// Check if availability for the given date already exists
 	var existingAvailability models.DoctorAvailability
-    if err := configuration.DB.Where("doctor_id = ? AND date = ?", availability.DoctorID, availability.Date).First(&existingAvailability).Error; err == nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Availability already exists for this date"})
-        return
-    } else if !errors.Is(err, gorm.ErrRecordNotFound) {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check availability"})
-        return
-    }
+	if err := configuration.DB.Where("doctor_id = ? AND date = ?", availability.DoctorID, availability.Date).First(&existingAvailability).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Availability already exists for this date"})
+		return
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check availability"})
+		return
+	}
 
 	// Create new availability record in the database
 	if err := configuration.DB.Create(&availability).Error; err != nil {
@@ -75,33 +73,38 @@ func SaveAvailability(c *gin.Context) {
 	c.JSON(http.StatusOK, availability)
 }
 
-
 // AddPrescription
-func AddPrescription(c *gin.Context){
+func AddPrescription(c *gin.Context) {
 	var prescription models.Prescription
-	if err := c.BindJSON(&prescription); err != nil{
+	if err := c.BindJSON(&prescription); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Check if doctor exists
 	var doctor models.Doctor
-	if err := configuration.DB.Where("doctor_id = ?", prescription.DoctorID).First(&doctor).Error; err != nil{
-		c.JSON(http.StatusNotFound, gin.H{"error":"Invalid doctor ID"})
+	if err := configuration.DB.Where("doctor_id = ?", prescription.DoctorID).First(&doctor).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid doctor ID"})
 		return
 	}
 
 	// Check if patient exists
 	var patient models.Patient
-	if err := configuration.DB.Where("patient_id = ?", prescription.PatientID).First(&patient).Error; err != nil{
-		c.JSON(http.StatusNotFound, gin.H{"error":"Invalid patient ID"})
+	if err := configuration.DB.Where("patient_id = ?", prescription.PatientID).First(&patient).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid patient ID"})
 		return
 	}
 
 	// Check if appointment exists
 	var appointment models.Appointment
-	if err := configuration.DB.Where("appointment_id = ?", prescription.AppointmentID).First(&appointment).Error; err != nil{
-		c.JSON(http.StatusNotFound, gin.H{"error":"Invalid appointment ID"})
+	if err := configuration.DB.Where("appointment_id = ?", prescription.AppointmentID).First(&appointment).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid appointment ID"})
+		return
+	}
+
+	//check if appointment is confirmed
+	if appointment.BookingStatus != "confirmed" {
+		c.JSON(http.StatusBadRequest, gin.H{"Error": "Appointmenet has not been confirmed"})
 		return
 	}
 
@@ -111,5 +114,70 @@ func AddPrescription(c *gin.Context){
 		return
 	}
 
-	c.JSON(http.StatusOK, prescription)
+	// Update appointment status to completed
+	if err := configuration.DB.Model(&appointment).Update("booking_status", "completed").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update appointment status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"Status":      "Success",
+		"Message":     "Prescription added sucessfully",
+		"pesvription": prescription,
+	})
+}
+
+func GetAppHistory(c *gin.Context) {
+	var appointment []models.Appointment
+	doctorID := c.Param("id")
+
+	if err := configuration.DB.Where("doctor_id = ?", doctorID).Find(&appointment).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Invalid doctor id"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"Error":   "Couldn't Get doctors details",
+			"details": err.Error()})
+		return
+	}
+	if len(appointment) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No history found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"Status":  "Success",
+		"Message": "Doctors details list fetched successfully",
+		"data":    appointment,
+	})
+}
+
+func GetDoctorAppointmentsByDate(c *gin.Context) {
+	doctorID := c.Param("doctor_id")
+	dateStr := c.Query("date")
+
+	// Parse the date string into time.Time format
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format"})
+		return
+	}
+
+	
+	// Query appointments
+	var appointments []models.Appointment
+	if err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND booking_status = ?", doctorID, date, "confirmed").Find(&appointments).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch appointments"})
+		return
+	}
+
+	// Extract booked time slots
+	bookedTimeSlots := make(map[string]bool)
+	for _, appointment := range appointments {
+		bookedTimeSlots[appointment.AppointmentTimeSlot] = true
+	}
+
+	// Respond with booked time slots
+	c.JSON(http.StatusOK, bookedTimeSlots)
 }

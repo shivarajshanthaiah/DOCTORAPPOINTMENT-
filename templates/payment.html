@@ -14,22 +14,27 @@
         <div class="card-body">
             <h1 class="mb-4 text-center">Payment Gateway</h1>
             
+             <!-- Payment form -->
             <form>
+                <!-- Invoice ID field -->
                 <div class="mb-3">
                     <label for="bookID" class="form-label">InvoiceID</label>
                     <input type="text" class="form-control" id="invoiceid" value="{{.invoiceID}}" readonly>
                 </div>
                 
+                 <!-- Appointment ID field -->
                 <div class="mb-3">
                     <label for="paymentid" class="form-label">Appointment ID</label>
                     <input type="text" class="form-control" id="paymentid" value="{{.appointmentID}}" readonly>
                 </div>
                 
+                <!-- Total Amount field -->
                 <div class="mb-3">
                     <label for="total" class="form-label">Total Amount</label>
                     <input type="text" class="form-control" id="total" value="{{.totalPrice}}" readonly>
                 </div>
                 
+                 <!-- Submit button -->
                 <div class="text-center">
                     <button type="button" id="rzp-button1" class="btn btn-primary w-50">Submit</button>
                 </div>
@@ -43,11 +48,13 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
+     // Retrieve values from the form
     const bookID = document.getElementById("invoiceid").value;
     const orderid = document.getElementById("paymentid").value;
     const total = document.getElementById("total").value;
 
     var options = {
+         // Options for Razorpay payment
         "key": "rzp_test_TdRphgC7SpeUHl",
         "amount": total * 100,
         "currency": "INR",
@@ -56,6 +63,7 @@
         "image": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTsCYugnIRIsMujuDfV8faVVN1vcvXE4GNnkvsO93NV83tQE8D1BP06SjbRGw5VyxhcaMc&usqp=CAU",
         "order_id": orderid,
         "handler": function (response) {
+            // Handler function for successful payment
             alert(response.razorpay_payment_id);
             verifyPayment(response, bookID, orderid, total);
         },
@@ -70,17 +78,21 @@
         }
     };
 
+     // Create a new Razorpay instance
     var rzp1 = new Razorpay(options);
 
+    // Event handler for payment failure
     rzp1.on('payment.failed', function (response){
         alert(response.error.code);
     });
 
+    // Event listener for clicking the payment button
     document.getElementById('rzp-button1').onclick = function(e) {
         rzp1.open();
         e.preventDefault();
     };
 
+    // Function to verify payment on server
     function verifyPayment(response, bookID, orderid, total) {
         console.log(bookID);
         $.ajax({
@@ -88,10 +100,12 @@
             method: 'GET',
             success: function(data) {
                 if (data) {
+                    // If payment is successful, redirect to success page
                     console.log('Payment success');
                     const id = response.razorpay_payment_id;
                     window.location.href = `/payment/success?id=${id}&bookID=${bookID}`;
                 } else {
+                    // If payment fails, display error alert and redirect to failed page
                     console.log('Payment failed');
                     swal({
                         title: "Sorry, Payment Failed",

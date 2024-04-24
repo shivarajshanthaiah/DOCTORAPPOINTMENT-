@@ -38,6 +38,7 @@ func ConfigDB() {
 		&models.Prescription{}, 
 		&models.Admin{},
 		&models.DoctorAvailability{},
+		&models.Wallet{},
 	)
 
 }

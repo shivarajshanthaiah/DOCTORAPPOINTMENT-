@@ -29,6 +29,9 @@ func UserRoutes() *gin.Engine {
 		user.GET("/doctor/:specialization", userControllers.GetDoctorsBySpeciality)
 		user.POST("/book/appointment", userControllers.BookAppointment)
 		user.POST("/pay/invoice/offline", controllers.PayInvoiceOffline)
+		user.GET("/wallet/:userid", controllers.Wallet)
+		user.POST("/cancel/appointment/:id", controllers.CancelAppointment)
+		user.GET("/appointment/history/:id", userControllers.GetAppointmenentHistory)
 
 	}
 
@@ -54,7 +57,12 @@ func UserRoutes() *gin.Engine {
 		admin.GET("/view/notVerified/doctors", adminControllers.ViewNotVerifiedDoctors)
 		admin.GET("/view/verified/approved/doctors", adminControllers.ViewVerifiedApprovedDoctors)
 		admin.GET("/view/verified/notApproved/doctors", adminControllers.ViewVerifiedNotApprovedDoctors)
-
+		admin.GET("/view/invoice", controllers.GetInvoice)
+		admin.GET("/total/appointments", adminControllers.GetBookingStatusCounts)
+		admin.GET("/doctor-wise/bookings", adminControllers.GetDoctorWiseBookings)
+		admin.GET("/department-wise/bookings", adminControllers.GetDepartmentWiseBookings)
+		admin.GET("/total/revenue", adminControllers.GetTotalRevenue)
+		admin.GET("/revenue/startdate", adminControllers.GetSpecificRevenue)
 	}
 
 	//Doctor routes
@@ -70,6 +78,9 @@ func UserRoutes() *gin.Engine {
 		doctors.POST("/update/availability", doctorControllers.SaveAvailability)
 		doctors.GET("/logout", doctorControllers.DoctorLogout)
 		doctors.POST("/add/prescription", doctorControllers.AddPrescription)
+		doctors.POST("/cancel/appointment/:id", controllers.CancelAppointment)
+		doctors.GET("/appointment/history/:id", doctorControllers.GetAppHistory)
+		doctors.GET("/appointment/:doctor_id/date", doctorControllers.GetDoctorAppointmentsByDate)
 	}
 
 	return r
