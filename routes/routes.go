@@ -3,7 +3,7 @@ package routes
 import (
 	"doctorAppointment/authentication"
 	"doctorAppointment/controllers"
-	adminControllers "doctorAppointment/controllers/admincontrollers"
+	adminControllers "doctorAppointment/controllers/adminControllers"
 	"doctorAppointment/controllers/doctorControllers"
 	"doctorAppointment/controllers/userControllers"
 

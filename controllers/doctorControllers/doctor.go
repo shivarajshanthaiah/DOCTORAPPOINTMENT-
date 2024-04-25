@@ -15,10 +15,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	DoctorVerified = "false"
-	DoctorApproved = "false"
-)
 
 var validate = validator.New()
 
@@ -224,8 +220,8 @@ func VerifyOTP(c *gin.Context) {
 		}
 
 		// Create doctor record in the database
-		doctorData.Verified = DoctorVerified
-		doctorData.Approved = DoctorApproved
+		doctorData.Verified = "false"
+		doctorData.Approved = "false"
 		configuration.DB.Create(&doctorData)
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "Success",
