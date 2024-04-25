@@ -247,14 +247,14 @@ func BookAppointment(c *gin.Context) {
 	}
 
 	// Generate PDF invoice
-	pdfInvoice, err := generateDuePDFInvoice(booking,invoice)
+	pdfInvoice, err := generateDuePDFInvoice(booking, invoice)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF invoice"})
 		return
 	}
 
 	// // Send payment confirmation email with PDF invoice attached
-	err = controllers.SendEmail("Payment successful for invoice", booking.PatientEmail, "invoice.pdf",pdfInvoice )
+	err = controllers.SendEmail("Payment successful for invoice", booking.PatientEmail, "invoice.pdf", pdfInvoice)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to send email"})
 		return
@@ -340,47 +340,74 @@ func isDuplicateAppointment(patientID int, doctorID int, date time.Time) bool {
 	return len(existingAppointments) == 0
 }
 
-// Function to generate PDF invoice
+// generateDuePDFInvoice generates a professional PDF invoice for appointment dues
 func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice) ([]byte, error) {
 	// Initialize PDF document
-	pdfContent := bytes.NewBuffer(nil)
 	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(10, 10, 10)
 	pdf.AddPage()
 
-	// Add content to the PDF
-	pdf.SetFont("Arial", "B", 11)
-	pdf.Line(10, pdf.GetY(), 90, pdf.GetY())
-	pdf.CellFormat(40, 10, "Appointment Confirmation", "0", 0, "C", false, 0, "")
-	pdf.Ln(10)
-	pdf.Cell(0, 10, fmt.Sprintf("Doctor ID: %d", booking.DoctorID))
-	pdf.Ln(10)
-	pdf.Cell(0, 10, fmt.Sprintf("Patient ID: %d", booking.PatientID))
-	pdf.Ln(10)
-	pdf.Cell(0, 10, fmt.Sprintf("Appointment ID: %d", booking.AppointmentID))
-	pdf.Ln(10)
-	pdf.Cell(0, 10, fmt.Sprintf("Appointment Date: %s", booking.AppointmentDate.Format("2006-01-02")))
-	pdf.Ln(10)
-	pdf.Cell(0, 10, fmt.Sprintf("Appointment Time Slot: %s", booking.AppointmentTimeSlot))
+	// Set font and font size
+	pdf.SetFont("Arial", "B", 14)
 
+	// Title (Go - Doctor Appointment Booking)
+	pdf.SetTextColor(128, 0, 128) // Dark purple color
+	pdf.CellFormat(0, 10, "Go - Doctor Appointment Booking", "", 1, "C", false, 0, "")
 
-	pdf.Line(10, pdf.GetY(), 90, pdf.GetY())
-
-	pdf.Ln(10)
-	pdf.Cell(0, 10, fmt.Sprintf("BookingStatus: %s", booking.BookingStatus))
-	pdf.Ln(10)
-	pdf.Cell(0, 10, fmt.Sprintf("Due amount: %f", invoice.TotalAmount))
+	// Business details (GSTN: www.goworld.com)
+	pdf.SetFont("Arial", "", 10)
+	pdf.CellFormat(0, 7, "GSTN: www.goworld.com", "", 1, "C", false, 0, "")
 	
-	pdf.Line(10, pdf.GetY(), 90, pdf.GetY())
+	// Appointment details section
+	pdf.SetFont("Arial", "B", 12)
+	pdf.SetTextColor(0, 0, 0) // Black color
+	pdf.CellFormat(0, 10, "Appointment Details", "1", 1, "C", false, 0, "")
+	addDetail(pdf, "Invoice ID", fmt.Sprintf("%d", invoice.InvoiceID), true)
+	addDetail(pdf, "Doctor ID", fmt.Sprintf("%d", booking.DoctorID), true)
+	addDetail(pdf, "Patient ID", fmt.Sprintf("%d", booking.PatientID), true)
+	addDetail(pdf, "Appointment ID", fmt.Sprintf("%d", booking.AppointmentID), true)
+	addDetail(pdf, "Appointment Date", booking.AppointmentDate.Format("2006-01-02"), true)
+	addDetail(pdf, "Time Slot", booking.AppointmentTimeSlot, true)
 
-	pdf.Ln(10) // Move down for spacing
-	pdf.Cell(40, 10, "Thank you for choosing. Welcome back again!")
+	// Invoice details section
+	pdf.CellFormat(0, 10, "Invoice Details", "1", 1, "C", false, 0, "")
+	addDetail(pdf, "Booking Status", booking.BookingStatus, false)
+	// CGST and SGST (0)
+	addDetail(pdf, "CGST (0%)", "0.00", false)
+	addDetail(pdf, "SGST (0%)", "0.00", false)
+	pdf.SetFont("Arial", "B", 13)
+	pdf.SetTextColor(139, 128, 0) // Yellow color for total amount
+	addDetail(pdf, "Grand Total", fmt.Sprintf("%.2f", invoice.TotalAmount), true)
+
+	// Payment instructions
+	pdf.SetTextColor(0, 0, 0) // Reset text color to black
+	pdf.CellFormat(0, 10, "Payment Instructions:", "", 1, "L", false, 0, "")
+	pdf.MultiCell(0, 5, "Thank you for initiating the appointment. To confirm your booking status please make the payment.", "", "L", false)
+
+	// Seal and signature section
+	pdf.SetY(pdf.GetY() + 12) // Move down for seal and signature
+	pdf.CellFormat(0, 10, "This is a computer generated invoice", "", 1, "R", false, 0, "")
+
 
 	// Output PDF to buffer
-	err := pdf.Output(pdfContent)
+	var pdfBuffer bytes.Buffer
+	err := pdf.Output(&pdfBuffer)
 	if err != nil {
 		return nil, err
 	}
 
-	return pdfContent.Bytes(), nil
+	return pdfBuffer.Bytes(), nil
 }
 
+// addDetail adds a detail line to the PDF
+func addDetail(pdf *gofpdf.Fpdf, label, value string, isHeader bool) {
+	if isHeader {
+		pdf.SetFont("Arial", "B", 12)
+		pdf.SetFillColor(255, 255, 255) // White color for header background
+	} else {
+		pdf.SetFont("Arial", "", 10)
+		pdf.SetFillColor(240, 240, 240) // Light gray color for detail background
+	}
+	pdf.CellFormat(45, 10, label, "1", 0, "", false, 0, "")
+	pdf.CellFormat(0, 10, value, "1", 1, "", false, 0, "")
+}
