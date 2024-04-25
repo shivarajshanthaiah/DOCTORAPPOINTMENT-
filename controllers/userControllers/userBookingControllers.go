@@ -1,16 +1,23 @@
 package userControllers
 
 import (
+	"bytes"
 	"doctorAppointment/configuration"
+	"doctorAppointment/controllers"
 	"doctorAppointment/models"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+
+	//"os"
+	//"path/filepath"
+	//"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jung-kurt/gofpdf"
 	"gorm.io/gorm"
 )
 
@@ -164,6 +171,12 @@ func BookAppointment(c *gin.Context) {
 		return
 	}
 
+	// Check if the appointment date is in the past
+	if booking.AppointmentDate.Before(time.Now()) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Appointment date cannot be in the past"})
+		return
+	}
+
 	// Check if the appointment time slot is within the available time slots of the doctor
 	doctorAvailability := getDoctorAvailability(booking.DoctorID, booking.AppointmentDate)
 	if doctorAvailability == nil {
@@ -198,6 +211,7 @@ func BookAppointment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Your Appointment has been already booked with the same doctor in the same day"})
 		return
 	}
+
 	// Create the appointment
 	booking.BookingStatus = "pending"
 	booking.PaymentStatus = "pending"
@@ -229,6 +243,20 @@ func BookAppointment(c *gin.Context) {
 
 	if err := configuration.DB.Create(&invoice).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create invoice"})
+		return
+	}
+
+	// Generate PDF invoice
+	pdfInvoice, err := generateDuePDFInvoice(booking,invoice)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF invoice"})
+		return
+	}
+
+	// // Send payment confirmation email with PDF invoice attached
+	err = controllers.SendEmail("Payment successful for invoice", booking.PatientEmail, "invoice.pdf",pdfInvoice )
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to send email"})
 		return
 	}
 
@@ -311,3 +339,48 @@ func isDuplicateAppointment(patientID int, doctorID int, date time.Time) bool {
 	// Found existing appointments for the same doctor and date
 	return len(existingAppointments) == 0
 }
+
+// Function to generate PDF invoice
+func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice) ([]byte, error) {
+	// Initialize PDF document
+	pdfContent := bytes.NewBuffer(nil)
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.AddPage()
+
+	// Add content to the PDF
+	pdf.SetFont("Arial", "B", 11)
+	pdf.Line(10, pdf.GetY(), 90, pdf.GetY())
+	pdf.CellFormat(40, 10, "Appointment Confirmation", "0", 0, "C", false, 0, "")
+	pdf.Ln(10)
+	pdf.Cell(0, 10, fmt.Sprintf("Doctor ID: %d", booking.DoctorID))
+	pdf.Ln(10)
+	pdf.Cell(0, 10, fmt.Sprintf("Patient ID: %d", booking.PatientID))
+	pdf.Ln(10)
+	pdf.Cell(0, 10, fmt.Sprintf("Appointment ID: %d", booking.AppointmentID))
+	pdf.Ln(10)
+	pdf.Cell(0, 10, fmt.Sprintf("Appointment Date: %s", booking.AppointmentDate.Format("2006-01-02")))
+	pdf.Ln(10)
+	pdf.Cell(0, 10, fmt.Sprintf("Appointment Time Slot: %s", booking.AppointmentTimeSlot))
+
+
+	pdf.Line(10, pdf.GetY(), 90, pdf.GetY())
+
+	pdf.Ln(10)
+	pdf.Cell(0, 10, fmt.Sprintf("BookingStatus: %s", booking.BookingStatus))
+	pdf.Ln(10)
+	pdf.Cell(0, 10, fmt.Sprintf("Due amount: %f", invoice.TotalAmount))
+	
+	pdf.Line(10, pdf.GetY(), 90, pdf.GetY())
+
+	pdf.Ln(10) // Move down for spacing
+	pdf.Cell(40, 10, "Thank you for choosing. Welcome back again!")
+
+	// Output PDF to buffer
+	err := pdf.Output(pdfContent)
+	if err != nil {
+		return nil, err
+	}
+
+	return pdfContent.Bytes(), nil
+}
+
