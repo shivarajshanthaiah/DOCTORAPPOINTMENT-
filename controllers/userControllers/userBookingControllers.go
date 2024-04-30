@@ -247,14 +247,14 @@ func BookAppointment(c *gin.Context) {
 	}
 
 	// Generate PDF invoice
-	pdfInvoice, err := generateDuePDFInvoice(booking, invoice)
+	pdfInvoice, err := generateDuePDFInvoice(booking, invoice, doctor, patient)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF invoice"})
 		return
 	}
 
 	// // Send payment confirmation email with PDF invoice attached
-	err = controllers.SendEmail("Payment successful for invoice", booking.PatientEmail, "invoice.pdf", pdfInvoice)
+	err = controllers.SendEmail("Payment due invoice", booking.PatientEmail, "invoice.pdf", pdfInvoice)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to send email"})
 		return
@@ -340,8 +340,8 @@ func isDuplicateAppointment(patientID int, doctorID int, date time.Time) bool {
 	return len(existingAppointments) == 0
 }
 
-// generateDuePDFInvoice generates a professional PDF invoice for appointment dues
-func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice) ([]byte, error) {
+//Function to generate pdf due incoice
+func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice, doctor models.Doctor, patient models.Patient) ([]byte, error) {
 	// Initialize PDF document
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetMargins(10, 10, 10)
@@ -357,14 +357,15 @@ func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice) (
 	// Business details (GSTN: www.goworld.com)
 	pdf.SetFont("Arial", "", 10)
 	pdf.CellFormat(0, 7, "GSTN: www.goworld.com", "", 1, "C", false, 0, "")
-	
+
 	// Appointment details section
 	pdf.SetFont("Arial", "B", 12)
 	pdf.SetTextColor(0, 0, 0) // Black color
-	pdf.CellFormat(0, 10, "Appointment Details", "1", 1, "C", false, 0, "")
+	pdf.CellFormat(0, 10, "Appointment Due Invoice", "1", 1, "C", false, 0, "")
 	addDetail(pdf, "Invoice ID", fmt.Sprintf("%d", invoice.InvoiceID), true)
-	addDetail(pdf, "Doctor ID", fmt.Sprintf("%d", booking.DoctorID), true)
-	addDetail(pdf, "Patient ID", fmt.Sprintf("%d", booking.PatientID), true)
+	addDetail(pdf, "Doctor Name", doctor.Name, true)
+	addDetail(pdf, "Specialization", doctor.Specialization, true)
+	addDetail(pdf, "Patient Name", patient.Name, true)
 	addDetail(pdf, "Appointment ID", fmt.Sprintf("%d", booking.AppointmentID), true)
 	addDetail(pdf, "Appointment Date", booking.AppointmentDate.Format("2006-01-02"), true)
 	addDetail(pdf, "Time Slot", booking.AppointmentTimeSlot, true)
@@ -372,12 +373,14 @@ func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice) (
 	// Invoice details section
 	pdf.CellFormat(0, 10, "Invoice Details", "1", 1, "C", false, 0, "")
 	addDetail(pdf, "Booking Status", booking.BookingStatus, false)
+	addDetail(pdf, "Due date", invoice.PaymentDueDate.Format("2006-01-02"), false)
 	// CGST and SGST (0)
 	addDetail(pdf, "CGST (0%)", "0.00", false)
 	addDetail(pdf, "SGST (0%)", "0.00", false)
 	pdf.SetFont("Arial", "B", 13)
-	pdf.SetTextColor(139, 128, 0) // Yellow color for total amount
 	addDetail(pdf, "Grand Total", fmt.Sprintf("%.2f", invoice.TotalAmount), true)
+	pdf.SetTextColor(139, 128, 0) // Yellow color for total amount
+	addDetail(pdf, "Balance due", fmt.Sprintf("%.2f", invoice.TotalAmount), true)
 
 	// Payment instructions
 	pdf.SetTextColor(0, 0, 0) // Reset text color to black
@@ -387,7 +390,6 @@ func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice) (
 	// Seal and signature section
 	pdf.SetY(pdf.GetY() + 12) // Move down for seal and signature
 	pdf.CellFormat(0, 10, "This is a computer generated invoice", "", 1, "R", false, 0, "")
-
 
 	// Output PDF to buffer
 	var pdfBuffer bytes.Buffer

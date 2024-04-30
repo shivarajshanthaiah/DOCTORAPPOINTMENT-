@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"bytes"
 	"doctorAppointment/configuration"
 	"doctorAppointment/models"
 	"errors"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jung-kurt/gofpdf"
 	"github.com/razorpay/razorpay-go"
 	"gorm.io/gorm"
 )
@@ -74,6 +76,40 @@ func PayInvoiceOffline(c *gin.Context) {
 		return
 	}
 
+	// bookingID := c.Query("bookingID")
+	// var booking models.Appointment
+	// if err := configuration.DB.First(&booking, bookingID).Error; err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch booking details"})
+	// 	return
+	// }
+
+	// Fetch doctor and patient details based on the booking
+	var doctor models.Doctor
+	if err := configuration.DB.First(&doctor, appointment.DoctorID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch doctor details"})
+		return
+	}
+
+	var patient models.Patient
+	if err := configuration.DB.First(&patient, appointment.PatientID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch patient details"})
+		return
+	}
+
+	// Generate PDF invoice
+	pdfInvoice, err := GeneratePaidPDFInvoice(appointment, invoice, doctor, patient)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF invoice"})
+		return
+	}
+
+	// Send payment confirmation email with PDF invoice attached
+	err = SendInvoiceEmail("Payment successful for invoice", appointment.PatientEmail, "invoice.pdf", pdfInvoice)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send email"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "Success",
 		"message": "Invoice payment successful",
@@ -124,7 +160,7 @@ func MakePaymentOnline(c *gin.Context) {
 		InvoiceID:  uint(invoice.InvoiceID),
 		AmountPaid: invoice.TotalAmount,
 	}
-	
+
 	razorpayment.RazorPaymentID = generateUniqueID()
 	if err := configuration.DB.Create(&razorpayment).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create razor payment"})
@@ -174,8 +210,7 @@ func generateUniqueID() string {
 	return id.String()
 }
 
-
-//Function to display success page after successfull payment
+// Function to display success page after successfull payment
 func SuccessPage(c *gin.Context) {
 	paymentID := c.Query("bookID")
 	fmt.Println(paymentID)
@@ -190,7 +225,6 @@ func SuccessPage(c *gin.Context) {
 	}
 	fmt.Printf("%+v\n", invoice)
 
-	
 	if invoice.PaymentStatus == "Pending" {
 		if err := configuration.DB.Model(&invoice).Update("payment_status", "Paid").Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -201,12 +235,12 @@ func SuccessPage(c *gin.Context) {
 	}
 
 	// Update payment method to "online"
-    if err := configuration.DB.Model(&invoice).Update("payment_method", "online").Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{
-            "Error": "Failed to update the payment method",
-        })
-        return
-    }
+	if err := configuration.DB.Model(&invoice).Update("payment_method", "online").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"Error": "Failed to update the payment method",
+		})
+		return
+	}
 
 	// Create a record of the RazorPay payment in the database
 	razorPayment := models.RazorPay{
@@ -230,12 +264,128 @@ func SuccessPage(c *gin.Context) {
 			return
 		}
 	}
-	
+
+	bookingID := c.Query("appointmentID")
+	var booking models.Appointment
+	if err := configuration.DB.First(&booking, bookingID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch booking details"})
+		return
+	}
+
+	// Fetch doctor and patient details based on the booking
+	var doctor models.Doctor
+	if err := configuration.DB.First(&doctor, booking.DoctorID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch doctor details"})
+		return
+	}
+
+	var patient models.Patient
+	if err := configuration.DB.First(&patient, booking.PatientID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch patient details"})
+		return
+	}
+
+	// Generate PDF invoice
+	pdfInvoice, err := GeneratePaidPDFInvoice(booking, invoice, doctor, patient)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF invoice"})
+		return
+	}
+	fmt.Println("Cant send email")
+	//Update corresponding appointment status
+	var appointment models.Appointment
+	if err := configuration.DB.Where("appointment_id = ?", invoice.AppointmentID).First(&appointment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch appointment"})
+		return
+	}
+
+	// Send payment confirmation email with PDF invoice attached
+	err = SendInvoiceEmail("Payment successful for invoice", appointment.PatientEmail, "invoice.pdf", pdfInvoice)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send email"})
+		return
+	}
+
+	fmt.Println("sent email")
 	// Render the success page template, passing payment ID, amount paid, and invoice ID as template variables
 	c.HTML(http.StatusOK, "success.html", gin.H{
-		"paymentID":   razorPayment.RazorPaymentID,
+		"paymentID":  razorPayment.RazorPaymentID,
 		"amountPaid": invoice.TotalAmount,
-		"invoiceID":   invoice.InvoiceID,
+		"invoiceID":  invoice.InvoiceID,
 	})
 }
 
+// generateDuePDFInvoice generates a professional PDF invoice for appointment dues
+func GeneratePaidPDFInvoice(booking models.Appointment, invoice models.Invoice, doctor models.Doctor, patient models.Patient) ([]byte, error) {
+	// Initialize PDF document
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(10, 10, 10)
+	pdf.AddPage()
+
+	// Set font and font size
+	pdf.SetFont("Arial", "B", 14)
+
+	// Title (Go - Doctor Appointment Booking)
+	pdf.SetTextColor(128, 0, 128) // Dark purple color
+	pdf.CellFormat(0, 10, "Go - Doctor Appointment Booking", "", 1, "C", false, 0, "")
+
+	// Business details (GSTN: www.goworld.com)
+	pdf.SetFont("Arial", "", 10)
+	pdf.CellFormat(0, 7, "GSTN: www.goworld.com", "", 1, "C", false, 0, "")
+
+	// Appointment details section
+	pdf.SetFont("Arial", "B", 12)
+	pdf.SetTextColor(0, 0, 0) // Black color
+	pdf.CellFormat(0, 10, "Invoice", "1", 1, "C", false, 0, "")
+	addDetail(pdf, "Invoice ID", fmt.Sprintf("%d", invoice.InvoiceID), true)
+	addDetail(pdf, "Doctor Name", doctor.Name, true)
+	addDetail(pdf, "Specialization", doctor.Specialization, true)
+	addDetail(pdf, "Patient Name", patient.Name, true)
+	addDetail(pdf, "Appointment ID", fmt.Sprintf("%d", booking.AppointmentID), true)
+	addDetail(pdf, "Appointment Date", booking.AppointmentDate.Format("2006-01-02"), true)
+	addDetail(pdf, "Time Slot", booking.AppointmentTimeSlot, true)
+
+	// Invoice details section
+	pdf.CellFormat(0, 10, "Invoice Details", "1", 1, "C", false, 0, "")
+	addDetail(pdf, "Booking Status", booking.BookingStatus, false)
+	addDetail(pdf, "Due date", invoice.PaymentDueDate.Format("2006-01-02"), false)
+	addDetail(pdf, "Paid date", invoice.UpdatedAt.Format("2006-01-02"), false)
+	// CGST and SGST (0)
+	addDetail(pdf, "CGST (0%)", "0.00", false)
+	addDetail(pdf, "SGST (0%)", "0.00", false)
+	pdf.SetFont("Arial", "B", 13)
+	addDetail(pdf, "Grand Total", fmt.Sprintf("%.2f", invoice.TotalAmount), true)
+	pdf.SetTextColor(139, 128, 0) // Yellow color for total amount
+	addDetail(pdf, "Amount Paid", fmt.Sprintf("%.2f", invoice.TotalAmount), true)
+
+	// Payment instructions
+	pdf.SetTextColor(0, 0, 0) // Reset text color to black
+	//pdf.CellFormat(0, 10, "Payment Instructions:", "", 1, "L", false, 0, "")
+	pdf.MultiCell(0, 5, "Thank you for using our service.", "", "L", false)
+
+	// Seal and signature section
+	pdf.SetY(pdf.GetY() + 12) // Move down for seal and signature
+	pdf.CellFormat(0, 10, "This is a computer generated invoice", "", 1, "R", false, 0, "")
+
+	// Output PDF to buffer
+	var pdfBuffer bytes.Buffer
+	err := pdf.Output(&pdfBuffer)
+	if err != nil {
+		return nil, err
+	}
+
+	return pdfBuffer.Bytes(), nil
+}
+
+// addDetail adds a detail line to the PDF
+func addDetail(pdf *gofpdf.Fpdf, label, value string, isHeader bool) {
+	if isHeader {
+		pdf.SetFont("Arial", "B", 12)
+		pdf.SetFillColor(255, 255, 255) // White color for header background
+	} else {
+		pdf.SetFont("Arial", "", 10)
+		pdf.SetFillColor(240, 240, 240) // Light gray color for detail background
+	}
+	pdf.CellFormat(45, 10, label, "1", 0, "", false, 0, "")
+	pdf.CellFormat(0, 10, value, "1", 1, "", false, 0, "")
+}

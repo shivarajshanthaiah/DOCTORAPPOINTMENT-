@@ -1,13 +1,17 @@
 package doctorControllers
 
 import (
+	"bytes"
 	"doctorAppointment/configuration"
+	"doctorAppointment/controllers"
 	"doctorAppointment/models"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jung-kurt/gofpdf"
 	"gorm.io/gorm"
 )
 
@@ -81,6 +85,13 @@ func AddPrescription(c *gin.Context) {
 		return
 	}
 
+	// doctorID, ok := c.Get("doctor_id")
+	// if !ok {
+	// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Doctor not authenticated"})
+	// 	return
+	// }
+	// prescription.DoctorID = doctorID.(uint)
+
 	// Check if doctor exists
 	var doctor models.Doctor
 	if err := configuration.DB.Where("doctor_id = ?", prescription.DoctorID).First(&doctor).Error; err != nil {
@@ -95,16 +106,22 @@ func AddPrescription(c *gin.Context) {
 		return
 	}
 
-	// Check if appointment exists
+	// Check if appointment exists for the doctor and patient
 	var appointment models.Appointment
-	if err := configuration.DB.Where("appointment_id = ?", prescription.AppointmentID).First(&appointment).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid appointment ID"})
+	if err := configuration.DB.Where("doctor_id = ? AND patient_id = ? AND appointment_id = ?", prescription.DoctorID, prescription.PatientID, prescription.AppointmentID).First(&appointment).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No confirmed appointment found for the doctor and patient"})
 		return
 	}
 
-	//check if appointment is confirmed
-	if appointment.BookingStatus != "confirmed" {
-		c.JSON(http.StatusBadRequest, gin.H{"Error": "Appointmenet has not been confirmed"})
+	switch appointment.BookingStatus {
+	case "pending":
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Appointment is not confirmed"})
+		return
+	case "completed":
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Prescription already added for this appointment"})
+		return
+	case "cancelled":
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Appointment has been cancelled"})
 		return
 	}
 
@@ -120,10 +137,24 @@ func AddPrescription(c *gin.Context) {
 		return
 	}
 
+	// Generate PDF invoice
+	pdfInvoice, err := GeneratePrescriptionPDF(appointment, doctor, patient, prescription)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF invoice"})
+		return
+	}
+
+	// // Send payment confirmation email with PDF invoice attached
+	err = controllers.SendPrescriptionEmail("Prescription attachment", patient.Email, "invoice.pdf", pdfInvoice)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Failed to send email"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"Status":      "Success",
 		"Message":     "Prescription added sucessfully",
-		"pesvription": prescription,
+		"pescription": prescription,
 	})
 }
 
@@ -164,7 +195,6 @@ func GetDoctorAppointmentsByDate(c *gin.Context) {
 		return
 	}
 
-	
 	// Query appointments
 	var appointments []models.Appointment
 	if err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND booking_status = ?", doctorID, date, "confirmed").Find(&appointments).Error; err != nil {
@@ -180,4 +210,68 @@ func GetDoctorAppointmentsByDate(c *gin.Context) {
 
 	// Respond with booked time slots
 	c.JSON(http.StatusOK, bookedTimeSlots)
+}
+
+// Generates a professional PDF prescription
+func GeneratePrescriptionPDF(appointment models.Appointment, doctor models.Doctor, patient models.Patient, prescription models.Prescription) ([]byte, error) {
+	// Initialize PDF document
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(10, 10, 10)
+	pdf.AddPage()
+
+	// Set font and font size
+	pdf.SetFont("Arial", "B", 14)
+
+	// Title (Doctor Prescription)
+	pdf.SetTextColor(0, 0, 0) // Black color
+	pdf.CellFormat(0, 10, "Doctor Prescription", "", 1, "C", false, 0, "")
+
+	// Doctor details section
+	pdf.SetFont("Arial", "B", 12)
+	addDetail(pdf, "Doctor Name:", doctor.Name, true)
+	addDetail(pdf, "Specialization:", doctor.Specialization, false)
+
+	// Patient details section
+	pdf.SetFont("Arial", "B", 12)
+	pdf.SetY(pdf.GetY() + 10) // Move down
+	addDetail(pdf, "Patient Name:", patient.Name, true)
+	addDetail(pdf, "Age:", patient.Age, false)
+	addDetail(pdf, "Gender:", patient.Gender, false)
+
+	// Appointment details section
+	pdf.SetFont("Arial", "B", 12)
+	pdf.SetY(pdf.GetY() + 10) // Move down
+	addDetail(pdf, "Appointment Date:", appointment.AppointmentDate.Format("2006-01-02"), true)
+	addDetail(pdf, "Time Slot:", appointment.AppointmentTimeSlot, false)
+
+	// Prescription details section
+	pdf.SetFont("Arial", "B", 12)
+	pdf.SetY(pdf.GetY() + 10) // Move down
+	addDetail(pdf, "Prescription ID:", fmt.Sprintf("%d", prescription.ID), true)
+	addDetail(pdf, "Instructions:", prescription.PrescriptionText, false)
+
+	// Prescription note
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetY(pdf.GetY() + 10) // Move down
+	pdf.MultiCell(0, 5, "Follow the instructions given by the doctor properly. Your health is all that matters!", "", "C", false)
+
+	// Output PDF to buffer
+	var pdfBuffer bytes.Buffer
+	err := pdf.Output(&pdfBuffer)
+	if err != nil {
+		return nil, err
+	}
+
+	return pdfBuffer.Bytes(), nil
+}
+
+// addDetail adds a detail line to the PDF
+func addDetail(pdf *gofpdf.Fpdf, label, value string, isHeader bool) {
+	if isHeader {
+		pdf.SetFont("Arial", "B", 12)
+	} else {
+		pdf.SetFont("Arial", "", 12)
+	}
+	pdf.CellFormat(0, 10, label, "", 1, "", false, 0, "")
+	pdf.CellFormat(0, 10, value, "", 1, "", false, 0, "")
 }
