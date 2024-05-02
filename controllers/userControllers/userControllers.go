@@ -44,7 +44,7 @@ func PatientLogin(c *gin.Context) {
 	}
 
 	// Generate JWT token for the patient
-	token, err := authentication.GeneratePatientToken(loginReq.Phone)
+	token, err := authentication.GeneratePatientToken(existingPatient.PatientID, loginReq.Phone)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
@@ -52,9 +52,9 @@ func PatientLogin(c *gin.Context) {
 
 	// Return the token
 	c.JSON(http.StatusOK, gin.H{
-		"Status":"Success",
-		"message":"Login sucessful",
-		"token": token,
+		"Status":  "Success",
+		"message": "Login sucessful",
+		"token":   token,
 	})
 }
 
@@ -209,4 +209,3 @@ func UserOtpVerify(c *gin.Context) {
 func PatientLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "You are successfully logged out"})
 }
-

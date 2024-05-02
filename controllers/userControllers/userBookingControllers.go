@@ -10,9 +10,6 @@ import (
 	"log"
 	"net/http"
 
-	//"os"
-	//"path/filepath"
-	//"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +30,12 @@ func GetAvailableTimeSlots(c *gin.Context) {
 		return
 	}
 
+	// Check if the specified date is before the current date
+	if date.Before(time.Now().Truncate(24 * time.Hour)) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Date cannot be in the past"})
+		return
+	}
+
 	// Query database for doctor's availability on the specified date
 	var availability models.DoctorAvailability
 	if err := configuration.DB.Where("doctor_id = ? AND date = ?", doctorID, date).First(&availability).Error; err != nil {
@@ -48,7 +51,7 @@ func GetAvailableTimeSlots(c *gin.Context) {
 
 	// Query database for existing bookings for the doctor on the specified date
 	var bookings []models.Appointment
-	if err := configuration.DB.Where("doctor_id = ? AND appointment_date = ?", doctorID, date).Find(&bookings).Error; err != nil {
+	if err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND (booking_status = ? OR booking_status = ?)", doctorID, date, "confirmed", "completed").Find(&bookings).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve bookings"})
 		return
 	}
@@ -68,6 +71,7 @@ func GetAvailableTimeSlots(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
+		"message":              "Time slots fetched successfully",
 		"date":                 dateStr,
 		"available_time_slots": adjustedTimeSlots,
 	})
@@ -170,6 +174,14 @@ func BookAppointment(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	patientID, ok := c.Get("patientID")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Patient not authenticated"})
+		return
+	}
+	fmt.Println("herr", patientID)
+	booking.PatientID = patientID.(int)
 
 	// Check if the appointment date is in the past
 	if booking.AppointmentDate.Before(time.Now()) {
@@ -340,7 +352,7 @@ func isDuplicateAppointment(patientID int, doctorID int, date time.Time) bool {
 	return len(existingAppointments) == 0
 }
 
-//Function to generate pdf due incoice
+// Function to generate pdf due incoice
 func generateDuePDFInvoice(booking models.Appointment, invoice models.Invoice, doctor models.Doctor, patient models.Patient) ([]byte, error) {
 	// Initialize PDF document
 	pdf := gofpdf.New("P", "mm", "A4", "")

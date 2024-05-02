@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//Func to get booking status
+// Func to get booking status
 func GetBookingStatusCounts(c *gin.Context) {
 	var totalBookings int64
 	// Query the database to count the total number of bookings
@@ -54,63 +54,63 @@ func GetBookingStatusCounts(c *gin.Context) {
 	})
 }
 
-//Func to get doctor-wise bookings
+// Func to get doctor-wise bookings
 func GetDoctorWiseBookings(c *gin.Context) {
 	// Defined a struct to store doctor-wise data
-    var doctorData []struct {
-        DoctorID     int `json:"doctor_id"`
-        BookingCount int `json:"booking_count"`
-        TotalRevenue float64 `json:"total_revenue"`
-    }
+	var doctorData []struct {
+		DoctorID     int     `json:"doctor_id"`
+		BookingCount int     `json:"booking_count"`
+		TotalRevenue float64 `json:"total_revenue"`
+	}
 
 	// Query the database to get doctor-wise data
-    result := configuration.DB.Table("appointments").
-        Select("appointments.doctor_id, COUNT(*) as booking_count, SUM(invoices.total_amount) as total_revenue").
-        Joins("INNER JOIN invoices ON appointments.appointment_id = invoices.appointment_id").
-        Group("appointments.doctor_id").
-        Scan(&doctorData)
-    
-    if result.Error != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch doctor-wise data"})
-        return
-    }
+	result := configuration.DB.Table("appointments").
+		Select("appointments.doctor_id, COUNT(*) as booking_count, SUM(invoices.total_amount) as total_revenue").
+		Joins("INNER JOIN invoices ON appointments.appointment_id = invoices.appointment_id").
+		Group("appointments.doctor_id").
+		Scan(&doctorData)
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch doctor-wise data"})
+		return
+	}
 
 	//Constructing and sending JSON response
-    c.JSON(http.StatusOK, gin.H{
-        "status":         "success",
-        "message":        "Doctor-wise data fetched successfully",
-        "doctorData":     doctorData,
-    })
+	c.JSON(http.StatusOK, gin.H{
+		"status":     "success",
+		"message":    "Doctor-wise data fetched successfully",
+		"doctorData": doctorData,
+	})
 }
 
-//Func to get department-wise bookings
+// Func to get department-wise bookings
 func GetDepartmentWiseBookings(c *gin.Context) {
 	// Defined a struct to store department-wise data
-    var departmentData []struct {
-        Specialization string  `json:"specialization"`
-        BookingCount   int     `json:"booking_count"`
-        TotalRevenue   float64 `json:"total_revenue"`
-    }
+	var departmentData []struct {
+		Specialization string  `json:"specialization"`
+		BookingCount   int     `json:"booking_count"`
+		TotalRevenue   float64 `json:"total_revenue"`
+	}
 
 	// Query the database to get doctor-wise data
-    result := configuration.DB.Table("appointments").
-        Select("doctors.specialization as specialization, COUNT(*) as booking_count, SUM(invoices.total_amount) as total_revenue").
-        Joins("JOIN doctors ON appointments.doctor_id = doctors.doctor_id").
-        Joins("JOIN invoices ON appointments.appointment_id = invoices.appointment_id").
-        Group("doctors.specialization").
-        Scan(&departmentData)
+	result := configuration.DB.Table("appointments").
+		Select("doctors.specialization as specialization, COUNT(*) as booking_count, SUM(invoices.total_amount) as total_revenue").
+		Joins("JOIN doctors ON appointments.doctor_id = doctors.doctor_id").
+		Joins("JOIN invoices ON appointments.appointment_id = invoices.appointment_id").
+		Group("doctors.specialization").
+		Scan(&departmentData)
 
-    if result.Error != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch department-wise data"})
-        return
-    }
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch department-wise data"})
+		return
+	}
 
 	//Constructing and sending JSON response
-    c.JSON(http.StatusOK, gin.H{
-        "status":              "success",
-        "message":             "Department-wise data fetched successfully",
-        "departmentData":     departmentData,
-    })
+	c.JSON(http.StatusOK, gin.H{
+		"status":         "success",
+		"message":        "Department-wise data fetched successfully",
+		"departmentData": departmentData,
+	})
 }
 
 // Defined a struct to store Revenue
@@ -121,7 +121,7 @@ type Revenue struct {
 	Year  *float64 `json:"year"`
 }
 
-//Func to get total revenue
+// Func to get total revenue
 func GetTotalRevenue(c *gin.Context) {
 	now := time.Now()
 
@@ -252,5 +252,3 @@ func GetSpecificRevenue(c *gin.Context) {
 		"Revenue": specificRevenue,
 	})
 }
-
-

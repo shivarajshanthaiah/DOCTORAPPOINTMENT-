@@ -20,5 +20,6 @@ type VerifyOTP struct {
 
 type PatientClaims struct {
 	jwt.StandardClaims
+	PatientID int `json:"patientID"`
 	Phone string `json:"phone"`
 }

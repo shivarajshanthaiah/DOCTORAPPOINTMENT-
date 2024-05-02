@@ -4,6 +4,7 @@ import (
 	"doctorAppointment/configuration"
 	"doctorAppointment/models"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -14,12 +15,11 @@ import (
 
 var jwtkeyy = []byte("doctorkey")
 
-
-//Generating token
+// Generating token
 func GenerateDoctorToken(doctorEmail string, doctorId uint) (string, error) {
 	//setting token expiration time
 	claims := &models.DoctorClaims{
-		Id:        doctorId,
+		Id:          doctorId,
 		DoctorEmail: doctorEmail,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)),
@@ -31,21 +31,21 @@ func GenerateDoctorToken(doctorEmail string, doctorId uint) (string, error) {
 }
 
 // verify Doctor Token
-func DoctorAuthentication(tokenString string) (string, error) {
+func DoctorAuthentication(tokenString string) (string, uint, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &models.DoctorClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return jwtkeyy, nil
 	})
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	if claims, ok := token.Claims.(*models.DoctorClaims); ok && token.Valid {
-		return claims.DoctorEmail, nil
+		return claims.DoctorEmail, claims.Id, nil
 	}
-	return "", errors.New("invalid token")
+	return "", 0, errors.New("invalid token")
 }
 
-//Doctor Auth middleware
+// Doctor Auth middleware
 func DoctorAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenString := c.GetHeader("Authorization")
@@ -57,17 +57,19 @@ func DoctorAuthMiddleware() gin.HandlerFunc {
 
 		authHeader := strings.TrimSpace(strings.TrimPrefix(tokenString, "Bearer"))
 
-		username, err := DoctorAuthentication(authHeader)
+		email, id, err := DoctorAuthentication(authHeader)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
-		c.Set("username", username)
+		fmt.Println(id, email)
+		c.Set("email", email)
+		c.Set("doctor_id", id)
 		c.Next()
 	}
 }
 
-//retrieves Doctor information from the database
+// retrieves Doctor information from the database
 func GetDoctorByEmail(email string) (*models.Doctor, error) {
 	var doctor models.Doctor
 	if err := configuration.DB.Where("email = ?", email).First(&doctor).Error; err != nil {

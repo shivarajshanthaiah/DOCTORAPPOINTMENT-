@@ -45,6 +45,14 @@ func SaveAvailability(c *gin.Context) {
 		return
 	}
 
+	doctorID, ok := c.Get("doctor_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Doctor not authenticated"})
+		return
+	}
+	fmt.Println("herr",doctorID)
+	availability.DoctorID = doctorID.(uint)
+
 	// Check if doctor exists
 	var doctor models.Doctor
 	if err := configuration.DB.Where("doctor_id = ?", availability.DoctorID).First(&doctor).Error; err != nil {
@@ -85,16 +93,17 @@ func AddPrescription(c *gin.Context) {
 		return
 	}
 
-	// doctorID, ok := c.Get("doctor_id")
-	// if !ok {
-	// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Doctor not authenticated"})
-	// 	return
-	// }
-	// prescription.DoctorID = doctorID.(uint)
+	doctorID, ok := c.Get("doctor_id")
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Doctor not authenticated"})
+		return
+	}
+	fmt.Println("herr",doctorID)
+	prescription.DoctorID = doctorID.(uint)
 
 	// Check if doctor exists
 	var doctor models.Doctor
-	if err := configuration.DB.Where("doctor_id = ?", prescription.DoctorID).First(&doctor).Error; err != nil {
+	if err := configuration.DB.Where("doctor_id = ?", doctorID).First(&doctor).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Invalid doctor ID"})
 		return
 	}
@@ -108,7 +117,7 @@ func AddPrescription(c *gin.Context) {
 
 	// Check if appointment exists for the doctor and patient
 	var appointment models.Appointment
-	if err := configuration.DB.Where("doctor_id = ? AND patient_id = ? AND appointment_id = ?", prescription.DoctorID, prescription.PatientID, prescription.AppointmentID).First(&appointment).Error; err != nil {
+	if err := configuration.DB.Where("doctor_id = ? AND patient_id = ? AND appointment_id = ?", doctorID, prescription.PatientID, prescription.AppointmentID).First(&appointment).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No confirmed appointment found for the doctor and patient"})
 		return
 	}

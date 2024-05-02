@@ -3,7 +3,7 @@ package authentication
 import (
 	"doctorAppointment/models"
 	"errors"
-	"net/http"
+	"fmt"
 	"strings"
 	"time"
 
@@ -14,59 +14,79 @@ import (
 var jwtKey = []byte("secretKey")
 
 // Generating jwt token for patient
-func GeneratePatientToken(phone string) (string, error) {
-
-	expirationTime := time.Now().Add(24 * time.Hour)
+func GeneratePatientToken(patientID int, phone string) (string, error) {
 
 	claims := &models.PatientClaims{
-
-		Phone:          phone,
-		StandardClaims: jwt.StandardClaims{ExpiresAt: expirationTime.Unix()},
-	}
+		PatientID: patientID,
+		Phone:     phone,
+		StandardClaims: jwt.StandardClaims{
+			// ExpiresAt: expirationTime.Unix()},
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(),
+			IssuedAt:  time.Now().Unix(),
+		}}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
-
-}
-
-func AuthenticatePatient(signedStringToken string) (string, error) {
-	// Parse the token
-	token, err := jwt.ParseWithClaims(signedStringToken, &models.PatientClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-
+	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
 		return "", err
 	}
+	return tokenString, nil
 
-	//type assert the claims from the token object
-	if claims, ok := token.Claims.(*models.PatientClaims); ok && token.Valid {
-		return claims.Phone, nil
+}
+
+func AuthenticatePatient(signedStringToken string) (string, int, error) {
+	// Parse the token
+	var patientClaims models.PatientClaims
+	token, err := jwt.ParseWithClaims(signedStringToken, &patientClaims, func(token *jwt.Token) (interface{}, error) {
+		return []byte(jwtKey), nil // Replace with your secret key
+	})
+
+	if err != nil {
+		return "", 0, err
 	}
+	//check the token is valid
+	if !token.Valid {
+		return "", 0, errors.New("token is not valid")
+	}
+	//type assert the claims from the token object
+	claims, ok := token.Claims.(*models.PatientClaims)
 
-	return "", errors.New("invalid token")
+	if !ok {
+		err = errors.New("couldn't parse claims")
+		return "", 0, err
+	}
+	phone := claims.Phone
+	patientIDS := float64(claims.PatientID)
+	if claims.ExpiresAt < time.Now().Unix() {
+		err = errors.New("token expired")
+		return "", 0, err
+	}
+	patientID := int(patientIDS)
+
+	return phone, patientID, nil
 }
 
 func PatientAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		patientsToken := c.GetHeader("Authorization")
+		// Extract token from the request header or other sources
+		tokenString := c.GetHeader("Authorization")
 
-		if patientsToken == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+		// Check if token exists
+		if tokenString == "" {
+			c.AbortWithStatusJSON(401, gin.H{"error": "User Authorization is missing"})
 			return
 		}
 
-		tokenString := strings.TrimSpace(strings.TrimPrefix(patientsToken, "Bearer"))
-
-		phone, err := AuthenticatePatient(tokenString)
+		// Trim the token to get the actual token string
+		authHeader := strings.Replace(tokenString, "Bearer ", "", 1)
+		phone, patientID, err := AuthenticatePatient(authHeader)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			//fmt.Println("Error authenticating user:", err)
+			c.AbortWithStatusJSON(401, gin.H{"error": err.Error()})
 			return
 		}
+		c.Set("patientID", patientID)
+		fmt.Println("Authenticated user:", phone)
 
-		// If authentication is successful, set the phone number in the request context
-		// so that handlers can access it if needed.
-		c.Set("phone", phone)
-		c.Next()
 	}
 }

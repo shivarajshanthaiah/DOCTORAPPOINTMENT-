@@ -30,33 +30,31 @@ func AdminLogin(c *gin.Context) {
 			return
 		}
 	} else {
-		if dbAdmin.Password != admin.Password{
-			c.JSON(http.StatusUnauthorized, gin.H{"error":"Invalid username or password"})
+		if dbAdmin.Password != admin.Password {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
 			return
 		}
 
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(admin.Password), bcrypt.DefaultCost)
-		if err != nil{
-			c.JSON(http.StatusInternalServerError, gin.H{"error":"Failed to hash password"})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 			return
 		}
 		dbAdmin.Password = string(hashedPassword)
-		if err := configuration.DB.Save(&dbAdmin).Error; err != nil{
-			c.JSON(http.StatusInternalServerError, gin.H{"error":"Failed to update password"})
+		if err := configuration.DB.Save(&dbAdmin).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
 			return
 		}
 	}
 
 	token, err := authentication.GenerateAdminToken(admin.Username)
-	if err != nil{
-		c.JSON(http.StatusInternalServerError, gin.H{"error":"Failed to generate token"})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message":"Login successful", "token": token})
+	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
 }
-
 
 func AdminLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
 }
-

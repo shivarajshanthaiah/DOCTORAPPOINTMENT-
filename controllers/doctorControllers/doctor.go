@@ -261,7 +261,7 @@ func DoctorLogin(c *gin.Context) {
 	}
 
 	// Generating JWT token for authenticated doctor
-	token, err := authentication.GenerateDoctorToken(doctors.Email, doctors.DoctorID)
+	token, err := authentication.GenerateDoctorToken(doctors.Email, existingDoctor.DoctorID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
