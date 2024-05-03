@@ -76,13 +76,6 @@ func PayInvoiceOffline(c *gin.Context) {
 		return
 	}
 
-	// bookingID := c.Query("bookingID")
-	// var booking models.Appointment
-	// if err := configuration.DB.First(&booking, bookingID).Error; err != nil {
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch booking details"})
-	// 	return
-	// }
-
 	// Fetch doctor and patient details based on the booking
 	var doctor models.Doctor
 	if err := configuration.DB.First(&doctor, appointment.DoctorID).Error; err != nil {
@@ -292,7 +285,7 @@ func SuccessPage(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF invoice"})
 		return
 	}
-	// fmt.Println("Cant send email")
+
 	//Update corresponding appointment status
 	var appointment models.Appointment
 	if err := configuration.DB.Where("appointment_id = ?", invoice.AppointmentID).First(&appointment).Error; err != nil {
@@ -307,7 +300,6 @@ func SuccessPage(c *gin.Context) {
 		return
 	}
 
-	// fmt.Println("sent email")
 	// Render the success page template, passing payment ID, amount paid, and invoice ID as template variables
 	c.HTML(http.StatusOK, "success.html", gin.H{
 		"paymentID":  razorPayment.RazorPaymentID,

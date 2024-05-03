@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+
 	"github.com/go-gomail/gomail"
 )
 
@@ -36,7 +37,6 @@ func SendEmail(msg, email, attachmentName string, attachmentData []byte) error {
 	return nil
 }
 
-
 // // SendEmail sends an email with an optional attachment
 func SendInvoiceEmail(msg, email, attachmentName string, attachmentData []byte) error {
 	// SMTP server configuration
@@ -65,7 +65,6 @@ func SendInvoiceEmail(msg, email, attachmentName string, attachmentData []byte) 
 
 	return nil
 }
-
 
 // // SendEmail sends an email with an optional attachment
 func SendPrescriptionEmail(msg, email, attachmentName string, attachmentData []byte) error {
