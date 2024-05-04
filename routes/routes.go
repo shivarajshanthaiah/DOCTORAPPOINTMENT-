@@ -32,6 +32,7 @@ func UserRoutes() *gin.Engine {
 		user.GET("/wallet/:userid", controllers.Wallet)
 		user.POST("/cancel/appointment/:id", controllers.CancelAppointment)
 		user.GET("/appointment/history/:id", userControllers.GetAppointmenentHistory)
+		user.POST("/pay/invoice/wallet", controllers.PayFromWallet)
 
 	}
 

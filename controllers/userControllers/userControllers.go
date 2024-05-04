@@ -182,7 +182,11 @@ func UserOtpVerify(c *gin.Context) {
 	value, err := configuration.GetRedis(key)
 	if err != nil {
 		fmt.Println("Error retrieving OTP from Redis:", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "Data": nil, "Message": "Internal server error"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  false,
+			"Data":    nil,
+			"Message": "Internal server error",
+		})
 		return
 	}
 
@@ -195,14 +199,30 @@ func UserOtpVerify(c *gin.Context) {
 		return
 	}
 
-	err = configuration.DB.Create(&userData).Error
-	if err != nil {
+	// Create user record
+	if err := configuration.DB.Create(&userData).Error; err != nil {
 		fmt.Println("Error creating Patient:", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message": "Failed to create user"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"Status": true, "Message": "OTP verified successfully and user has been created. Login to continue..."})
+	// Create wallet for the user with balance 0
+	wallet := models.Wallet{
+		UserID: userData.PatientID,
+		Amount: 0,
+	}
+
+	// Create wallet record
+	if err := configuration.DB.Create(&wallet).Error; err != nil {
+		fmt.Println("Error creating Wallet:", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"Status": false, "Data": nil, "Message": "Failed to create wallet"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"Status":  true,
+		"Message": "OTP verified successfully and user has been created. Login to continue...",
+	})
 }
 
 // User logout

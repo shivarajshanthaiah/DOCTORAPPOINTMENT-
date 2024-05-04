@@ -180,7 +180,7 @@ func BookAppointment(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Patient not authenticated"})
 		return
 	}
-	fmt.Println("herr", patientID)
+	fmt.Println("patient id ", patientID)
 	booking.PatientID = patientID.(int)
 
 	// Check if the appointment date is in the past
@@ -207,7 +207,7 @@ func BookAppointment(c *gin.Context) {
 
 	// Check for existing appointments with the same date and time slot
 	if !isAppointmentAvailable(booking.DoctorID, booking.AppointmentDate, booking.AppointmentTimeSlot) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Appointment has been already booked for the same date and time slot with the doctor"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Another Appointment has been already booked for the same date and time slot with the doctor"})
 		return
 	}
 
@@ -219,7 +219,7 @@ func BookAppointment(c *gin.Context) {
 	}
 
 	// Check for duplicate appointments with the same doctor on the same day
-	if !isDuplicateAppointment(booking.PatientID, booking.DoctorID, booking.AppointmentDate) {
+	if isDuplicateAppointment(booking.PatientID, booking.DoctorID, booking.AppointmentDate) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Your Appointment has been already booked with the same doctor in the same day"})
 		return
 	}
@@ -299,19 +299,25 @@ func isTimeWithinAvailableSlot(appointmentTimeSlot string, availableSlots []stri
 	return false
 }
 
-// isAppointmentAvailable checks if there is already an appointment booked with the same doctor, date, and time slot
 func isAppointmentAvailable(doctorID int, date time.Time, appointmentTimeSlot string) bool {
 	var existingAppointment models.Appointment
-	err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND appointment_time_slot = ? AND payment_status = ?", doctorID, date, appointmentTimeSlot, "paid").First(&existingAppointment).Error
+	err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND appointment_time_slot = ?", doctorID, date, appointmentTimeSlot).First(&existingAppointment).Error
 	if err == nil {
-		return false // Appointment already exists for the same date and time slot
+	  // Check for confirmed or completed appointments
+	  if existingAppointment.BookingStatus == "confirmed" || existingAppointment.BookingStatus == "completed" {
+		return false // Appointment already booked
+	  }
+	  // Appointment available if pending or cancelled
+	  return true
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		// An unexpected error occurred while querying the database
-		log.Println("Error checking for existing appointment:", err)
-		return false
+	  // Unexpected error
+	  log.Println("Error checking for existing appointment:", err)
+	  return false
 	}
+	// No existing appointment, slot is available
+	fmt.Println(existingAppointment.BookingStatus)
 	return true
-}
+  }
 
 // divideAvailableSlots divides the available time slots of a doctor into smaller time slots based on the specified interval
 func divideAvailableSlots(availability string, interval time.Duration) []string {
@@ -336,20 +342,15 @@ func divideAvailableSlots(availability string, interval time.Duration) []string 
 	return slots
 }
 
-// isDuplicateAppointment checks if there are any duplicate appointments with the same doctor on the same day
 func isDuplicateAppointment(patientID int, doctorID int, date time.Time) bool {
 	var existingAppointments []models.Appointment
-	err := configuration.DB.Where("patient_id = ? AND doctor_id = ? AND appointment_date = ? AND payment_status =?", patientID, doctorID, date, "paid").Find(&existingAppointments).Error
+	err := configuration.DB.Where("patient_id = ? AND doctor_id = ? AND appointment_date = ? AND booking_status IN (?, ?, ?)", patientID, doctorID, date, "pending", "confirmed", "completed").Find(&existingAppointments).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return true // No existing appointments found for the same doctor and date
-		}
-		// An unexpected error occurred while querying the database
 		log.Println("Error checking for existing appointments:", err)
-		return false
+		return true // Return true to indicate an error occurred
 	}
-	// Found existing appointments for the same doctor and date
-	return len(existingAppointments) == 0
+	// Check if any existing appointments were found
+	return len(existingAppointments) > 0
 }
 
 // Function to generate pdf due incoice
