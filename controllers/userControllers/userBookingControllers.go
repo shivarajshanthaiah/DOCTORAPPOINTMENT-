@@ -303,21 +303,21 @@ func isAppointmentAvailable(doctorID int, date time.Time, appointmentTimeSlot st
 	var existingAppointment models.Appointment
 	err := configuration.DB.Where("doctor_id = ? AND appointment_date = ? AND appointment_time_slot = ?", doctorID, date, appointmentTimeSlot).First(&existingAppointment).Error
 	if err == nil {
-	  // Check for confirmed or completed appointments
-	  if existingAppointment.BookingStatus == "confirmed" || existingAppointment.BookingStatus == "completed" {
-		return false // Appointment already booked
-	  }
-	  // Appointment available if pending or cancelled
-	  return true
+		// Check for confirmed or completed appointments
+		if existingAppointment.BookingStatus == "confirmed" || existingAppointment.BookingStatus == "completed" {
+			return false // Appointment already booked
+		}
+		// Appointment available if pending or cancelled
+		return true
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-	  // Unexpected error
-	  log.Println("Error checking for existing appointment:", err)
-	  return false
+		// Unexpected error
+		log.Println("Error checking for existing appointment:", err)
+		return false
 	}
 	// No existing appointment, slot is available
 	fmt.Println(existingAppointment.BookingStatus)
 	return true
-  }
+}
 
 // divideAvailableSlots divides the available time slots of a doctor into smaller time slots based on the specified interval
 func divideAvailableSlots(availability string, interval time.Duration) []string {
